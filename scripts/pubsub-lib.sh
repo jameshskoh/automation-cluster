@@ -5,6 +5,10 @@
 # editing one in place has no effect).
 
 : "${MAX_DELIVERY_ATTEMPTS:=5}"
+# Pub/Sub's max allowed ack deadline. claude-automator only acks after a full claude CLI session
+# answers the question (well beyond Pub/Sub's 10s default), so subscriptions it consumes need the
+# deadline pushed out this far to avoid redelivery mid-processing.
+: "${ACK_DEADLINE_SECONDS:=600}"
 
 create_topic_if_missing() {
   local topic="$1"
@@ -53,7 +57,8 @@ create_subscription_if_missing() {
     --topic "$topic" \
     --message-filter "$filter" \
     --dead-letter-topic "$dlq_topic" \
-    --max-delivery-attempts "$MAX_DELIVERY_ATTEMPTS"
+    --max-delivery-attempts "$MAX_DELIVERY_ATTEMPTS" \
+    --ack-deadline "$ACK_DEADLINE_SECONDS"
 
   grant_dlq_permissions "$dlq_topic" "$subscription"
 }

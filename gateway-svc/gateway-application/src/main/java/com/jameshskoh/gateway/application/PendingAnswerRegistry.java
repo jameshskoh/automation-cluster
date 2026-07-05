@@ -35,11 +35,13 @@ public class PendingAnswerRegistry {
    */
   public void register(String requestId, AnswerSink sink) {
     pending.put(requestId, new Pending(sink, Instant.now()));
+    log.info("Registered pending answer for requestId={}", requestId);
   }
 
   public void complete(String requestId, GatewayMessage message) {
     Pending removed = pending.remove(requestId);
     if (removed != null) {
+      log.info("Delivering answer for requestId={}", requestId);
       deliver(requestId, removed.sink(), message);
     } else {
       // No sink registered for this requestId: it already timed out and was evicted, or the
