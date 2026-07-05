@@ -33,12 +33,12 @@ public class GatewayResponseSubscriber implements MessageReceiver {
       asyncAnswerUseCase.answer(gatewayMessage);
       consumer.ack();
     } catch (Exception e) {
-      // TODO: There is no dead-letter topic yet. Until one exists, a poison message (bad JSON,
-      // failed handling) would redeliver forever if nack'd, so we log its content and ack it to
-      // drop it. Replace this with a dead-letter subscription and nack once available.
-      log.error("Failed to handle GatewayMessage, dropping. payload={}",
+      // Nack a poison message (bad JSON, failed handling) so Pub/Sub redelivers it and, after the
+      // subscription's max delivery attempts, routes it to the dead-letter topic wired up in
+      // provision-pubsub.sh — rather than silently acking-and-dropping it here.
+      log.error("Failed to handle GatewayMessage, nacking for redelivery/DLQ. payload={}",
           message.getData().toStringUtf8(), e);
-      consumer.ack();
+      consumer.nack();
     }
   }
 }

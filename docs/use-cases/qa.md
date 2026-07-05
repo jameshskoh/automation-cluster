@@ -42,7 +42,7 @@ each script's header comment for the exact order dependency). Once both topics e
 
 ## Known gaps for this use case
 
-See `../to-do.md` for full detail. Notably: claude-automator does not yet validate the inbound
-message's `use_case`/`stage` fields before acting on it — it relies solely on the Pub/Sub
-subscription filter above, which is a delivery-routing optimization, not a data-contract
-guarantee.
+See `../to-do.md` for full detail. Notably: claude-automator still correlates requests via files
+on disk (`UUID_PATH`, `ACK_ID_PATH`, populated from the envelope's `request_id`) rather than an
+in-process mechanism. It does now validate the inbound envelope body (shape + `use_case`/`stage`)
+against a zod schema before acting, nacking messages that fail validation.

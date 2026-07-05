@@ -56,10 +56,9 @@ mismatches between the current codebase and the standards described there.
   text and so are carried in `metadata`; `payload` is sent empty (`""`) — a future use case may
   use `payload` for non-conversational data. Both publishers set `use_case`/`stage` as Pub/Sub
   message attributes (not just body fields), so the attribute-based subscription filters set up by
-  `provision-pubsub.sh` now match real traffic. Remaining gap: claude-automator doesn't validate
-  the inbound `use_case`/`stage` body
-  fields before acting — it still relies solely on the Pub/Sub filter (a routing optimization,
-  not a data-contract guarantee). Adding that validation is unstarted.
+  `provision-pubsub.sh` now match real traffic. claude-automator also validates the inbound
+  envelope body (shape + `use_case`/`stage`) before acting, no longer relying on the Pub/Sub filter
+  as its sole data-contract check — see the claude-automator item below.
 - ~~**No Pub/Sub schema configured on any topic.**~~ **Fixed.** `schemas/gateway_message.proto`
   defines the envelope as a Protobuf schema; `scripts/provision-pubsub-schema.sh` registers it via
   `gcloud pubsub schemas create` and attaches it (with `--message-encoding=json`, since messages
@@ -67,17 +66,16 @@ mismatches between the current codebase and the standards described there.
 - ~~**No DLQ configured on any subscription.**~~ **Fixed for the Q&A flow.** Each service's
   `provision-pubsub.sh` creates a dead-letter topic for the subscription(s) it owns and wires
   `--dead-letter-topic` + IAM bindings for the Pub/Sub service agent. `GatewayResponseSubscriber`
-  (formerly `AiResponseSubscriber`) still acks-and-drops on failure instead of nacking (see its
-  inline `TODO`) — now that a DLQ exists, that should be changed to nack so poison messages
-  actually reach the DLQ instead of being silently dropped.
-- **claude-automator has no use_case/stage validation.** It now reads/writes the shared
-  `GatewayMessage` envelope shape (`use_case`, `stage`, `request_id`, `payload`, `metadata`) and
-  correctly populates `use_case`/`stage` on its outbound `ANSWERED` message, so the subscription
-  filters in `provision-pubsub.sh` match real traffic. It still correlates requests via files on
-  disk (`UUID_PATH`, `ACK_ID_PATH`, populated from the envelope's `request_id`) rather than an
-  in-process mechanism, and does not validate the inbound message's `use_case`/`stage` fields
-  before acting on it — it relies solely on the Pub/Sub subscription filter, which is a
-  delivery-routing optimization, not a data-contract guarantee. Both remain unstarted.
+  (formerly `AiResponseSubscriber`) now nacks on failure, so poison messages redeliver and, after
+  the subscription's max delivery attempts, reach the DLQ instead of being silently acked-and-dropped.
+- **claude-automator correlates requests via files on disk.** It reads/writes the shared
+  `GatewayMessage` envelope shape (`use_case`, `stage`, `request_id`, `payload`, `metadata`),
+  correctly populates `use_case`/`stage` on its outbound `ANSWERED` message, and now validates the
+  inbound envelope body against a zod schema (shape + `use_case="QA"`/`stage="ASKED"`) before acting
+  — nacking a message that fails validation so it redelivers and eventually dead-letters, rather
+  than relying on the Pub/Sub subscription filter as its sole data-contract check. Remaining gap:
+  it still correlates requests via files on disk (`UUID_PATH`, `ACK_ID_PATH`, populated from the
+  envelope's `request_id`) rather than an in-process mechanism. That remains unstarted.
 - **No per-use-case timeout configuration.** `gateway-svc` has a `qa.async.timeout-millis` (HTTP
   long-poll timeout) and a separate `qa.pending.ttl-millis` (registry eviction sweep), which
   together approximate the gateway's timeout-then-cleanup design — but this is hardcoded to the

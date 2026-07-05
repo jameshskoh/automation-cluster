@@ -1,4 +1,5 @@
 import "dotenv/config";
+import {z} from "zod";
 import {config} from "../../../config.ts";
 import {v1} from "@google-cloud/pubsub";
 import type {google} from "@google-cloud/pubsub/build/protos/protos.js";
@@ -12,16 +13,24 @@ const subscriptionPath = subClient.subscriptionPath(config.GCP_PROJECT_ID, confi
 const pubClient = new v1.PublisherClient();
 const topicPath = pubClient.projectTopicsPath(config.GCP_PROJECT_ID, config.PUBSUB_TOPIC_ID);
 
-type GatewayMessage = {
-    use_case: string;
-    stage: string;
-    request_id: string;
-    payload: string;
-    metadata: string;
-}
-
 const QA_USE_CASE = "QA";
+const ASKED_STAGE = "ASKED";
 const ANSWERED_STAGE = "ANSWERED";
+
+// The shared envelope shape (see schemas/gateway_message.proto). Inbound messages are validated
+// against this before being acted on — the Pub/Sub subscription filter is a delivery-routing
+// optimization, not a data-contract guarantee, so we also assert use_case/stage in the body match
+// the stage this service consumes (QA/ASKED). A message that fails validation is nacked so
+// Pub/Sub redelivers it and, after max delivery attempts, routes it to the DLQ.
+const gatewayMessageSchema = z.object({
+    use_case: z.literal(QA_USE_CASE),
+    stage: z.literal(ASKED_STAGE),
+    request_id: z.string().min(1),
+    payload: z.string(),
+    metadata: z.string(),
+});
+
+type GatewayMessage = z.infer<typeof gatewayMessageSchema>;
 
 export async function processUsefulMessage(): Promise<string> {
     for (let i = 0; i < config.POLL_COUNT; i++) {
@@ -111,20 +120,44 @@ async function pollPubSub(): Promise<{
     }
 
     const rawMessage = rawMessages[0];
+    const ackId = rawMessage.ackId!;
     const message = deserialize(rawMessage);
 
-    if (message.metadata === null || message.metadata == "") {
+    if (message === null) {
+        // Malformed envelope or wrong use_case/stage in the body — the message got past the
+        // subscription filter but violates the data contract. Nack it so Pub/Sub redelivers and,
+        // after max delivery attempts, routes it to the DLQ rather than silently dropping it.
+        console.error("Invalid inbound GatewayMessage, nacking for redelivery/DLQ.");
+        await nack(ackId);
+        return null;
+    }
+
+    if (message.metadata == "") {
+        // A well-formed but content-empty message is a benign no-op for this service; ack-drop it.
         await subClient.acknowledge({
             subscription: subscriptionPath,
-            ackIds: [rawMessage.ackId!],
+            ackIds: [ackId],
         });
         return null;
-    } else {
-        return {request: message, ackId: rawMessage.ackId!};
     }
+
+    return {request: message, ackId};
 }
 
-function deserialize(payload: IReceivedMessage): GatewayMessage {
+// Nacks a message by setting its ack deadline to 0, prompting immediate redelivery (Pub/Sub's
+// pull API has no explicit nack; a zero ack-deadline is the equivalent).
+async function nack(ackId: string): Promise<void> {
+    await subClient.modifyAckDeadline({
+        subscription: subscriptionPath,
+        ackIds: [ackId],
+        ackDeadlineSeconds: 0,
+    });
+}
+
+// Parses and validates the inbound message against the shared envelope schema. Returns null if the
+// payload is not valid JSON or does not satisfy the contract (including a use_case/stage that isn't
+// QA/ASKED) — the caller nacks in that case.
+function deserialize(payload: IReceivedMessage): GatewayMessage | null {
     const data = payload.message!.data;
     let jsonString: string;
     if (typeof data === "string") {
@@ -132,5 +165,19 @@ function deserialize(payload: IReceivedMessage): GatewayMessage {
     } else {
         jsonString = Buffer.from(data as Uint8Array).toString("utf-8");
     }
-    return JSON.parse(jsonString);
+
+    let parsed: unknown;
+    try {
+        parsed = JSON.parse(jsonString);
+    } catch (err) {
+        console.error(`Failed to parse inbound message as JSON: ${err}`);
+        return null;
+    }
+
+    const result = gatewayMessageSchema.safeParse(parsed);
+    if (!result.success) {
+        console.error("Inbound message failed envelope validation:\n" + result.error.toString());
+        return null;
+    }
+    return result.data;
 }
