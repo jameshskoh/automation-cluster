@@ -1,0 +1,28 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx ts-node .claude/hooks/poll-useful-message.ts",
+            "statusMessage": "SessionStart triggered.",
+            "timeout": 1800
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "npx ts-node .claude/hooks/end-session.ts",
+            "statusMessage": "Restarting...",
+            "timeout": 1800
+          }
+        ]
+      }
+    ]
+  }
+}
