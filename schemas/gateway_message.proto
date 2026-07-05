@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+// The shared message envelope used by every use case (see docs/arch/messaging.md). Registered as
+// a Pub/Sub schema (see scripts/provision-pubsub-schema.sh) and attached to topics with
+// --message-encoding=json: messages are still sent as plain JSON on the wire, but Pub/Sub
+// validates each publish against this structure before accepting it onto the topic.
+message GatewayMessage {
+  string use_case = 1;
+  string stage = 2;
+  string request_id = 3;
+  string payload = 4;
+  string metadata = 5;
+}

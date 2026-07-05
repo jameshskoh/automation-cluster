@@ -27,7 +27,7 @@ flowchart TD
     nextStage -. "eventually" .-> gateway
 ```
 
-- **gateway** (`ai-svc`, to be renamed — see `to-do.md`): the only always-online service. Accepts
+- **gateway** (`gateway-svc`): the only always-online service. Accepts
   inbound requests (HTTP, WebSocket, Slack, etc.), assigns a `request_id` (UUID), and is
   responsible for eventually delivering a response back to whichever caller made the original
   request — regardless of what form that caller's connection took.

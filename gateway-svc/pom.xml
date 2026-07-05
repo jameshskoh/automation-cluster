@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>4.1.0</version>
+        <relativePath/>
+    </parent>
+
+    <groupId>com.jameshskoh</groupId>
+    <artifactId>gateway-svc</artifactId>
+    <version>${revision}</version>
+    <packaging>pom</packaging>
+
+    <properties>
+        <revision>0.0.1-SNAPSHOT</revision>
+        <java.version>25</java.version>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>com.google.cloud</groupId>
+                <artifactId>libraries-bom</artifactId>
+                <version>26.80.0</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <build>
+        <plugins>
+            <!-- Resolves the ${revision} CI-friendly version placeholder in installed/deployed POMs.
+                 Without this, installed POMs keep the literal ${revision}, so building a single
+                 module against the local repo (e.g. `./mvnw test -pl gateway-test`) fails to
+                 resolve com.jameshskoh:gateway-svc:pom:${revision}. -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>flatten-maven-plugin</artifactId>
+                <version>1.7.0</version>
+                <configuration>
+                    <updatePomFile>true</updatePomFile>
+                    <flattenMode>resolveCiFriendliesOnly</flattenMode>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>flatten</id>
+                        <phase>process-resources</phase>
+                        <goals>
+                            <goal>flatten</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>flatten.clean</id>
+                        <phase>clean</phase>
+                        <goals>
+                            <goal>clean</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+
+    <modules>
+        <module>gateway-domain</module>
+        <module>gateway-application</module>
+        <module>gateway-common</module>
+        <module>adapters/in/gateway-controller</module>
+        <module>adapters/in/gateway-scheduler</module>
+        <module>adapters/in/gateway-consumer</module>
+        <module>adapters/out/gateway-repository</module>
+        <module>adapters/out/gateway-client</module>
+        <module>adapters/out/gateway-producer</module>
+        <module>gateway-bootstrap</module>
+        <module>gateway-test</module>
+    </modules>
+</project>

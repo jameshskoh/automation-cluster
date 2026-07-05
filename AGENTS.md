@@ -1,9 +1,9 @@
 # automation-cluster
 
 Mono-repo of independently deployable services that process requests asynchronously via GCP
-Pub/Sub. One always-on stateful **gateway** (`ai-svc`) receives a request, publishes to Pub/Sub,
-and holds the caller's connection open until an answer message returns; everything else is
-event-driven.
+Pub/Sub. One always-on stateful **gateway** (`gateway-svc`) receives a request, publishes to
+Pub/Sub, and holds the caller's connection open until an answer message returns; everything else
+is event-driven.
 
 ## Where things are
 
@@ -16,8 +16,8 @@ event-driven.
   and where the code diverges from the design. Check before assuming the code matches the docs.
 - **Use cases** — [`docs/use-cases/`](docs/use-cases/): one file per async flow (see `README.md`
   for the required format; `qa.md` is the only live use case).
-- **The gateway module** — [`ai-svc/AGENTS.md`](ai-svc/AGENTS.md): clean-architecture module
-  rules, package/naming conventions, build & run commands.
+- **The gateway module** — [`gateway-svc/AGENTS.md`](gateway-svc/AGENTS.md): clean-architecture
+  module rules, package/naming conventions, build & run commands.
 
 ## Provisioning
 

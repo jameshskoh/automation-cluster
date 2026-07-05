@@ -32,59 +32,66 @@ mismatches between the current codebase and the standards described there.
 
 ## Mismatches: current code vs. standards in `architecture.md`
 
-- ~~**Topic naming is backwards on the request side.**~~ **Fixed.** `ai-svc`'s config keys and env
-  vars have been renamed to reflect actual ownership: the gateway's outbound topic is
+- ~~**Topic naming is backwards on the request side.**~~ **Fixed.** `gateway-svc`'s config keys and
+  env vars have been renamed to reflect actual ownership: the gateway's outbound topic is
   `gateway-requests` (config prefix `gcp.pubsub.gateway-requests`, env var
   `GATEWAY_REQUESTS_PUBSUB_TOPIC_ID`), and claude-automator's outbound topic is
   `claude-automator-responses` (config prefix `gcp.pubsub.claude-automator-responses`, env var
   `CLAUDE_AUTOMATOR_RESPONSES_PUBSUB_SUBSCRIPTION_ID` on the gateway side, `PUBSUB_TOPIC_ID` /
   `PUBSUB_SUBSCRIPTION_ID` on the claude-automator side). Provisioned by
-  `ai-svc/scripts/provision-pubsub.sh` and `claude-automator/scripts/provision-pubsub.sh` (each
-  service provisions only what it owns — see `arch/topics-and-provisioning.md`).
-  The Java property/class names (`AiRequestPubSubProperties`,
+  `gateway-svc/scripts/provision-pubsub.sh` and `claude-automator/scripts/provision-pubsub.sh`
+  (each service provisions only what it owns — see `arch/topics-and-provisioning.md`).
+  The Java property/class names at the time (`AiRequestPubSubProperties`,
   `AiResponsePubSubProperties`, `AiRequest`/`AiResponse` domain records) were intentionally left
-  as-is — only the config prefixes and topic/subscription names changed.
-- **`ai-svc` is the gateway but isn't named/organized as one yet.** The architecture calls the
-  always-on stateful service "the gateway"; the module is currently `ai-svc` with an
-  `AiRequest`/`AiResponse`-shaped domain that's specific to one use case (Q&A), not a generic
-  gateway. Decide on and execute a rename (directory, Maven artifact ids, packages) to make clear
-  this module *is* the gateway, separate from the topic renames already done above.
-- **No unified message envelope yet.** `AiRequest` (`uuid`, `question`) and `AiResponse` (`uuid`,
-  `answer`) are one-off Java records serialized as plain JSON via Jackson. They have no
-  `use_case`, `stage`, `payload`/`metadata` split, and are not backed by a Protobuf/Pub-Sub
-  schema. Every function currently would need to invent its own message shape rather than sharing
-  the unified envelope described in `arch/messaging.md`. (Both `provision-pubsub.sh` scripts set up
-  attribute-based filtering as if `use_case=QA`/`stage=ASKED|ANSWERED` were already being
-  published — until the envelope + attributes are actually added to the publishers, the filters
-  will match nothing.)
-- **No Pub/Sub schema configured on any topic.** Neither `provision-pubsub.sh` script attaches a
-  schema; messages are still unvalidated JSON blobs until the Protobuf envelope exists (see above)
-  and gets attached via `gcloud pubsub schemas create` + `--schema-name` on topic creation.
+  as-is for this change — only the config prefixes and topic/subscription names changed. (They
+  were renamed in a later pass — see the module-rename item below.)
+- ~~**`ai-svc` is the gateway but isn't named/organized as one yet.**~~ **Fixed.** The module has
+  been renamed `gateway-svc` (directory, Maven artifact ids, packages —
+  `com.jameshskoh.gateway`), making clear this module *is* the gateway rather than a
+  Q&A-specific `ai-svc`. `AiRequest`/`AiResponse` were replaced by a shared `GatewayMessage`
+  domain record as part of the same change (see the unified-envelope item below).
+- ~~**No unified message envelope yet.**~~ **Fixed for the Q&A flow.** The Q&A use case now uses
+  the shared `GatewayMessage` envelope (`use_case`, `stage`, `request_id`, `payload`, `metadata`)
+  on both legs. For this use case specifically, the question and answer are each conversational
+  text and so are carried in `metadata`; `payload` is sent empty (`""`) — a future use case may
+  use `payload` for non-conversational data. Both publishers set `use_case`/`stage` as Pub/Sub
+  message attributes (not just body fields), so the attribute-based subscription filters set up by
+  `provision-pubsub.sh` now match real traffic. Remaining gap: claude-automator doesn't validate
+  the inbound `use_case`/`stage` body
+  fields before acting — it still relies solely on the Pub/Sub filter (a routing optimization,
+  not a data-contract guarantee). Adding that validation is unstarted.
+- ~~**No Pub/Sub schema configured on any topic.**~~ **Fixed.** `schemas/gateway_message.proto`
+  defines the envelope as a Protobuf schema; `scripts/provision-pubsub-schema.sh` registers it via
+  `gcloud pubsub schemas create` and attaches it (with `--message-encoding=json`, since messages
+  are still sent as plain JSON) to both `gateway-requests` and `claude-automator-responses`.
 - ~~**No DLQ configured on any subscription.**~~ **Fixed for the Q&A flow.** Each service's
   `provision-pubsub.sh` creates a dead-letter topic for the subscription(s) it owns and wires
-  `--dead-letter-topic` + IAM bindings for the Pub/Sub service agent. `AiResponseSubscriber` still
-  acks-and-drops on failure instead of nacking (see its inline `TODO`) — now that a DLQ exists,
-  that should be changed to nack so poison messages actually reach the DLQ instead of being
-  silently dropped.
-- **claude-automator has no use_case/stage concept.** It reads `PUBSUB_TOPIC_ID` /
-  `PUBSUB_SUBSCRIPTION_ID` as flat, single-purpose env vars (now pointed at the correctly-owned
-  `claude-automator-responses` topic / `claude-automator-gateway-requests-sub` subscription) and
-  correlates requests via files on disk (`UUID_PATH`, `ACK_ID_PATH`) rather than via the unified
-  message envelope's `request_id` field. Bringing it in line with the unified format (and
-  publishing `use_case`/`stage` attributes so the subscription filters in `provision-pubsub.sh`
-  actually match something) is unstarted.
-- **No per-use-case timeout configuration.** `ai-svc` has a `qa.async.timeout-millis` (HTTP
+  `--dead-letter-topic` + IAM bindings for the Pub/Sub service agent. `GatewayResponseSubscriber`
+  (formerly `AiResponseSubscriber`) still acks-and-drops on failure instead of nacking (see its
+  inline `TODO`) — now that a DLQ exists, that should be changed to nack so poison messages
+  actually reach the DLQ instead of being silently dropped.
+- **claude-automator has no use_case/stage validation.** It now reads/writes the shared
+  `GatewayMessage` envelope shape (`use_case`, `stage`, `request_id`, `payload`, `metadata`) and
+  correctly populates `use_case`/`stage` on its outbound `ANSWERED` message, so the subscription
+  filters in `provision-pubsub.sh` match real traffic. It still correlates requests via files on
+  disk (`UUID_PATH`, `ACK_ID_PATH`, populated from the envelope's `request_id`) rather than an
+  in-process mechanism, and does not validate the inbound message's `use_case`/`stage` fields
+  before acting on it — it relies solely on the Pub/Sub subscription filter, which is a
+  delivery-routing optimization, not a data-contract guarantee. Both remain unstarted.
+- **No per-use-case timeout configuration.** `gateway-svc` has a `qa.async.timeout-millis` (HTTP
   long-poll timeout) and a separate `qa.pending.ttl-millis` (registry eviction sweep), which
   together approximate the gateway's timeout-then-cleanup design — but this is hardcoded to the
   one Q&A use case rather than being a declared, per-use-case property as `architecture.md`
   describes. Generalizing this to a per-use-case timeout config (so a new use case can declare its
   own timeout without touching shared config keys) is unstarted.
 - **No graceful-shutdown drain/force-fail/forced-shutdown sequence implemented.** Nothing in
-  `ai-bootstrap` currently drains in-flight registry entries or force-fails them on shutdown; only
-  the TTL sweeper exists, which is a different mechanism (periodic eviction, not a shutdown hook).
+  `gateway-bootstrap` currently drains in-flight registry entries or force-fails them on shutdown;
+  only the TTL sweeper exists, which is a different mechanism (periodic eviction, not a shutdown
+  hook).
 - **Pub/Sub provisioning exists (per-service); gateway deploy script does not.**
-  `ai-svc/scripts/provision-pubsub.sh` and `claude-automator/scripts/provision-pubsub.sh` cover
-  topic/subscription/DLQ creation for the Q&A flow, each provisioning only what it owns. A
+  `gateway-svc/scripts/provision-pubsub.sh` and `claude-automator/scripts/provision-pubsub.sh`
+  cover topic/subscription/DLQ creation for the Q&A flow, each provisioning only what it owns
+  (plus the repo-root `scripts/provision-pubsub-schema.sh` for the shared envelope schema). A
   `deploy.sh` for the gateway itself was deliberately not written: the gateway is being run
   locally for now rather than deployed to Cloud Run — write this script when that changes.
   Per-function (`xxxsvc`) deploy scripts also remain unstarted since no such function exists in

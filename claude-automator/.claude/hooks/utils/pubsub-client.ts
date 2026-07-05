@@ -12,15 +12,16 @@ const subscriptionPath = subClient.subscriptionPath(config.GCP_PROJECT_ID, confi
 const pubClient = new v1.PublisherClient();
 const topicPath = pubClient.projectTopicsPath(config.GCP_PROJECT_ID, config.PUBSUB_TOPIC_ID);
 
-type AiRequest = {
-    uuid: string;
-    question: string;
+type GatewayMessage = {
+    use_case: string;
+    stage: string;
+    request_id: string;
+    payload: string;
+    metadata: string;
 }
 
-type AiResponse = {
-    uuid: string;
-    answer: string;
-}
+const QA_USE_CASE = "QA";
+const ANSWERED_STAGE = "ANSWERED";
 
 export async function processUsefulMessage(): Promise<string> {
     for (let i = 0; i < config.POLL_COUNT; i++) {
@@ -31,12 +32,12 @@ export async function processUsefulMessage(): Promise<string> {
             const {request: message, ackId} = pubSubResult;
 
             await cleanupFile(config.UUID_PATH);
-            await writeContent(config.UUID_PATH, message.uuid)
+            await writeContent(config.UUID_PATH, message.request_id)
 
             await cleanupFile(config.ACK_ID_PATH);
             await writeContent(config.ACK_ID_PATH, ackId)
 
-            return message.question;
+            return message.metadata;
         }
         console.debug("Got nothing this round. Waiting for the next round ...")
         if (i < config.POLL_COUNT - 1) await sleep(config.POLL_INTERVAL_MS);
@@ -49,25 +50,31 @@ export type SendResult =
     | {ok: false; reason: string};
 
 export async function sendMessage(message: string): Promise<SendResult> {
-    const uuid = await read(config.UUID_PATH);
+    const requestId = await read(config.UUID_PATH);
     const ackId = await read(config.ACK_ID_PATH);
 
     await cleanupFile(config.UUID_PATH);
     await cleanupFile(config.ACK_ID_PATH);
 
-    if (uuid == null) {
+    if (requestId == null) {
         console.error("UUID file is missing — cannot send reply without knowing which question this answers. Aborting.");
         return {ok: false, reason: "uuid_missing"};
     }
 
-    const answer: AiResponse = {
-        uuid: uuid,
-        answer: message,
+    const answer: GatewayMessage = {
+        use_case: QA_USE_CASE,
+        stage: ANSWERED_STAGE,
+        request_id: requestId,
+        payload: "",
+        metadata: message,
     }
     const data = Buffer.from(JSON.stringify(answer));
+    // use_case/stage are set as Pub/Sub message attributes (not just body fields) because the
+    // gateway's subscription filter selects on attributes.use_case/attributes.stage. A message
+    // missing these attributes matches no filter and is silently dropped by Pub/Sub.
     const [response] = await pubClient.publish({
         topic: topicPath,
-        messages: [{data}],
+        messages: [{data, attributes: {use_case: QA_USE_CASE, stage: ANSWERED_STAGE}}],
     });
     console.log(`Published message ID: ${response.messageIds?.[0]}`);
 
@@ -89,7 +96,7 @@ const sleep = (ms: number): Promise<void> =>
     new Promise(resolve => setTimeout(resolve, ms));
 
 async function pollPubSub(): Promise<{
-    request: AiRequest,
+    request: GatewayMessage,
     ackId: string
 } | null> {
     const [response] = await subClient.pull({
@@ -106,7 +113,7 @@ async function pollPubSub(): Promise<{
     const rawMessage = rawMessages[0];
     const message = deserialize(rawMessage);
 
-    if (message.question === null || message.question == "") {
+    if (message.metadata === null || message.metadata == "") {
         await subClient.acknowledge({
             subscription: subscriptionPath,
             ackIds: [rawMessage.ackId!],
@@ -117,7 +124,7 @@ async function pollPubSub(): Promise<{
     }
 }
 
-function deserialize(payload: IReceivedMessage): AiRequest {
+function deserialize(payload: IReceivedMessage): GatewayMessage {
     const data = payload.message!.data;
     let jsonString: string;
     if (typeof data === "string") {
