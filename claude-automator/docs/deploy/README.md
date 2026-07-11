@@ -53,7 +53,7 @@ docker run -d --name claude-automator \
   -e PUBSUB_SUBSCRIPTION_ID=claude-automator-gateway-requests-sub \
   -e OTLP_METRICS_URL=<your-otlp-collector-url> \
   -e POLL_INTERVAL_MS=5000 \
-  -e POLL_COUNT=2 \
+  -e POLL_COUNT=360 \
   claude-automator
 ```
 

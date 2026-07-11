@@ -10,7 +10,7 @@ FROM node:22-slim AS builder
 
 ARG GIT_REF=main
 
-RUN apt-get update && apt-get install -y --no-install-recommends git \
+RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 RUN git clone --depth 1 --branch "${GIT_REF}" \

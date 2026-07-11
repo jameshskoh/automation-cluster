@@ -32,7 +32,8 @@ async function main() {
         filter: 'attributes.use_case="QA" AND attributes.stage="ANSWERED"',
         ackDeadlineSeconds: 60,
         // Safety net in case this process is killed before reaching the finally block below.
-        expirationPolicy: {ttl: {seconds: 3600}},
+        // 24h is Pub/Sub's enforced minimum expiration TTL (a shorter value is rejected outright).
+        expirationPolicy: {ttl: {seconds: 86400}},
     });
 
     try {

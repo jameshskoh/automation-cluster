@@ -53,7 +53,7 @@ about:
 ```
 
 — one interval short of the naive `POLL_COUNT x POLL_INTERVAL_MS`. With the `.env.example`
-defaults (`POLL_COUNT=2`, `POLL_INTERVAL_MS=5000`), that's `5s` of sleep, plus each `pull()`
+defaults (`POLL_COUNT=360`, `POLL_INTERVAL_MS=5000`), that's `~30min` of sleep, plus each `pull()`
 call's own round-trip latency (variable — this is a lower bound).
 
 ## Safeguard

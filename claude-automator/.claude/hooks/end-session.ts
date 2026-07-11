@@ -18,28 +18,34 @@ interface StopHookInput {
 }
 
 async function main() {
-    const raw = await readStdin();
-    const input: StopHookInput = JSON.parse(raw);
-
     let success = false;
     try {
-        const result = await sendMessage(input.last_assistant_message ?? "No result.");
-        success = result.ok;
-        if (result.ok) {
-            await recordHookCompleted("Stop", "success");
-        } else {
-            await recordHookCompleted("Stop", "failure", result.reason);
+        const raw = await readStdin();
+        const input: StopHookInput = JSON.parse(raw);
+
+        try {
+            const result = await sendMessage(input.last_assistant_message ?? "No result.");
+            success = result.ok;
+            if (result.ok) {
+                await recordHookCompleted("Stop", "success");
+            } else {
+                await recordHookCompleted("Stop", "failure", result.reason);
+            }
+        } catch (err) {
+            console.error(`Failed to send message: ${err}`);
+            await recordHookCompleted("Stop", "failure", "publish_error");
         }
     } catch (err) {
-        console.error(`Failed to send message: ${err}`);
-        await recordHookCompleted("Stop", "failure", "publish_error");
-    }
-
-    try {
-        const pid = Number.parseInt(readFileSync(config.PID_FILE, "utf8").trim(), 10);
-        process.kill(pid, "SIGTERM");
-    } catch {
-        // PID file missing or process already gone
+        console.error(`Failed to read/parse Stop hook input: ${err}`);
+    } finally {
+        // Must run even if the steps above threw — otherwise the spawned `claude` process
+        // (tracked in PID_FILE) is never killed and run.ts's respawn loop stalls.
+        try {
+            const pid = Number.parseInt(readFileSync(config.PID_FILE, "utf8").trim(), 10);
+            process.kill(pid, "SIGTERM");
+        } catch {
+            // PID file missing or process already gone
+        }
     }
     process.exit(success ? 0 : 1);
 }
