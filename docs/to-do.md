@@ -10,6 +10,12 @@ mismatches between the current codebase and the standards described there.
   service boundaries. `claude-automator` already exports OTLP metrics
   (`OTLP_METRICS_URL`) — figure out whether to extend that pattern repo-wide or standardize on
   something else.
+- **claude-automator's "nothing to do" case reports as a metric failure.** When `SessionStart`'s
+  poll finds no message, the `Stop` hook still runs, finds no `UUID_PATH`, and records
+  `claude_hook_completed_total{hook_event=Stop, outcome=failure, reason=uuid_missing}` — but this
+  is expected, benign behavior, not a real failure. It conflates with genuine publish/ack errors
+  in failure-rate metrics. Needs its own outcome (or to be skipped entirely) instead of reusing
+  `failure`.
 - **Distributed/persistent callback registry**: the gateway's `request_id → callback` map is
   in-memory only (see `architecture.md`). A hard crash (not a graceful shutdown) loses all
   in-flight registrations. Needs a decision on whether/how to back this with persistent storage
