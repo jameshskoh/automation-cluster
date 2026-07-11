@@ -16,6 +16,39 @@ mismatches between the current codebase and the standards described there.
   is expected, benign behavior, not a real failure. It conflates with genuine publish/ack errors
   in failure-rate metrics. Needs its own outcome (or to be skipped entirely) instead of reusing
   `failure`.
+- **claude-automator's failure paths aren't diagrammed yet.** `claude-automator/docs/use-cases/`
+  currently has `happy-path.md` and `nothing-to-do.md` — the success case and the empty-poll case.
+  At least three other paths exist in the code but aren't written up anywhere as sequence
+  diagrams; do so following the same template:
+  - **Ack failure after a successful publish is mislabeled and risks a duplicate answer.**
+    `sendMessage()` (`pubsub-client.ts`) publishes the answer, then acks the original inbound
+    message. If `subClient.acknowledge()` itself throws, that exception is caught by
+    `end-session.ts`'s generic `catch`, which records `reason=publish_error` even though the
+    answer was already published. Because the ack never happened, the input message is still
+    unacked and will redeliver, so a later session can re-answer the same question — a real
+    duplicate-answer risk, not just a mislabeled metric.
+  - **A silent disk-write failure in `SessionStart` discards a pulled message's answer.**
+    `writeContent()` (`filesystem.ts`) catches its own errors and returns `false`, but
+    `processUsefulMessage()` (`pubsub-client.ts`) never checks that return value when writing
+    `UUID_PATH`/`ACK_ID_PATH`. If the write fails (disk full, permissions), the pulled message's
+    `metadata` is still handed to Claude Code as if nothing went wrong. `Stop` later can't find
+    the UUID file, aborts before publishing (`reason=uuid_missing`), and the original input
+    message — never acked — just redelivers on a later session. The answer that session produced
+    is silently thrown away.
+  - **Invalid-envelope nack → redeliver → DLQ.** `deserialize()` (`pubsub-client.ts`) returns
+    `null` on a malformed body or a `use_case`/`stage` mismatch, and `pollPubSub()` nacks via
+    `modifyAckDeadline(0)`. The mechanism is commented in code but the end-to-end path (nack,
+    redeliver, repeat across polls/sessions, eventual DLQ after max delivery attempts) has never
+    been diagrammed.
+
+  Suggested treatment: give the three paths above their own sequence diagrams — each spans
+  multiple processes/sessions and leaves disk/Pub/Sub state that the existing docs don't show. Two
+  more paths exist but are thinner and probably don't warrant their own diagram: a transient
+  `pull()` failure (caught in `poll-useful-message.ts`, distinct `reason=poll_error` and
+  `additionalContext` text from the empty-poll case, but otherwise the same shape as
+  `nothing-to-do.md`) — fold this in as a note on that doc rather than a new file — and the
+  PID-file-missing-on-kill / OTLP-export-failure / benign-empty-`metadata`-ack-drop cases, which
+  are already deliberately swallowed or covered by `metrics.md` and don't need new diagrams.
 - **Distributed/persistent callback registry**: the gateway's `request_id → callback` map is
   in-memory only (see `architecture.md`). A hard crash (not a graceful shutdown) loses all
   in-flight registrations. Needs a decision on whether/how to back this with persistent storage
