@@ -30,15 +30,15 @@ sequenceDiagram
 Each service provisions only the infrastructure it owns (see
 `../arch/topics-and-provisioning.md`): its own
 outbound topic + DLQ, and its own subscription against whichever topic it consumes. Run
-`gateway-svc/scripts/provision-pubsub.sh` before `claude-automator/scripts/provision-pubsub.sh` (each
+`gateway-svc/scripts/provision-pubsub.sh` before `claude-automator-dev/claude-automator/scripts/provision-pubsub.sh` (each
 service's subscription targets the other service's topic, so the topic must exist first — see
 each script's header comment for the exact order dependency). Once both topics exist, run
 `../../scripts/provision-pubsub-schema.sh` to register and attach the shared envelope schema.
 
 | Topic (owner) | Subscription (owner) | Filter | Dead-letter topic | Provisioned by |
 |---|---|---|---|---|
-| `gateway-requests` (gateway) | `claude-automator-gateway-requests-sub` (claude-automator) | `use_case="QA" AND stage="ASKED"` | `gateway-requests-claude-automator-sub-dlq` | `../../gateway-svc/scripts/provision-pubsub.sh` (topic) + `../../claude-automator/scripts/provision-pubsub.sh` (subscription) |
-| `claude-automator-responses` (claude-automator) | `gateway-claude-automator-responses-sub` (gateway) | `use_case="QA" AND stage="ANSWERED"` | `claude-automator-responses-gateway-sub-dlq` | `../../claude-automator/scripts/provision-pubsub.sh` (topic) + `../../gateway-svc/scripts/provision-pubsub.sh` (subscription) |
+| `gateway-requests` (gateway) | `claude-automator-gateway-requests-sub` (claude-automator) | `use_case="QA" AND stage="ASKED"` | `gateway-requests-claude-automator-sub-dlq` | `../../gateway-svc/scripts/provision-pubsub.sh` (topic) + `../../claude-automator-dev/claude-automator/scripts/provision-pubsub.sh` (subscription) |
+| `claude-automator-responses` (claude-automator) | `gateway-claude-automator-responses-sub` (gateway) | `use_case="QA" AND stage="ANSWERED"` | `claude-automator-responses-gateway-sub-dlq` | `../../claude-automator-dev/claude-automator/scripts/provision-pubsub.sh` (topic) + `../../gateway-svc/scripts/provision-pubsub.sh` (subscription) |
 
 ## Known gaps for this use case
 

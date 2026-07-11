@@ -5,8 +5,9 @@ set -euo pipefail
 #   - creates gateway-requests (the gateway's outbound topic + DLQ)
 #   - creates the gateway's subscription against claude-automator-responses
 #
-# Run order: claude-automator/scripts/provision-pubsub.sh must run FIRST — this script's
-# subscription targets claude-automator-responses, a topic that script owns and creates.
+# Run order: claude-automator-dev/claude-automator/scripts/provision-pubsub.sh must run FIRST —
+# this script's subscription targets claude-automator-responses, a topic that script owns and
+# creates.
 #
 # See docs/arch/topics-and-provisioning.md for the ownership convention and idempotency caveat
 # (safe to re-run for additions; subscription filters are immutable), and docs/use-cases/qa.md for

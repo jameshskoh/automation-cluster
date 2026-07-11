@@ -16,7 +16,7 @@ mismatches between the current codebase and the standards described there.
   is expected, benign behavior, not a real failure. It conflates with genuine publish/ack errors
   in failure-rate metrics. Needs its own outcome (or to be skipped entirely) instead of reusing
   `failure`.
-- **claude-automator's failure paths aren't diagrammed yet.** `claude-automator/docs/use-cases/`
+- **claude-automator's failure paths aren't diagrammed yet.** `claude-automator-dev/docs/use-cases/`
   currently has `happy-path.md` and `nothing-to-do.md` — the success case and the empty-poll case.
   At least three other paths exist in the code but aren't written up anywhere as sequence
   diagrams; do so following the same template:
@@ -49,6 +49,9 @@ mismatches between the current codebase and the standards described there.
   `nothing-to-do.md`) — fold this in as a note on that doc rather than a new file — and the
   PID-file-missing-on-kill / OTLP-export-failure / benign-empty-`metadata`-ack-drop cases, which
   are already deliberately swallowed or covered by `metrics.md` and don't need new diagrams.
+- **No automated tests exist for `claude-automator`.** No test runner is configured (no `test`
+  script in `package.json`). `pubsub-client.ts` and `filesystem.ts` are the highest-value starting
+  points, given the failure-path gaps documented above.
 - **Distributed/persistent callback registry**: the gateway's `request_id → callback` map is
   in-memory only (see `architecture.md`). A hard crash (not a graceful shutdown) loses all
   in-flight registrations. Needs a decision on whether/how to back this with persistent storage
@@ -78,7 +81,7 @@ mismatches between the current codebase and the standards described there.
   `claude-automator-responses` (config prefix `gcp.pubsub.claude-automator-responses`, env var
   `CLAUDE_AUTOMATOR_RESPONSES_PUBSUB_SUBSCRIPTION_ID` on the gateway side, `PUBSUB_TOPIC_ID` /
   `PUBSUB_SUBSCRIPTION_ID` on the claude-automator side). Provisioned by
-  `gateway-svc/scripts/provision-pubsub.sh` and `claude-automator/scripts/provision-pubsub.sh`
+  `gateway-svc/scripts/provision-pubsub.sh` and `claude-automator-dev/claude-automator/scripts/provision-pubsub.sh`
   (each service provisions only what it owns — see `arch/topics-and-provisioning.md`).
   The Java property/class names at the time (`AiRequestPubSubProperties`,
   `AiResponsePubSubProperties`, `AiRequest`/`AiResponse` domain records) were intentionally left
@@ -126,10 +129,17 @@ mismatches between the current codebase and the standards described there.
   only the TTL sweeper exists, which is a different mechanism (periodic eviction, not a shutdown
   hook).
 - **Pub/Sub provisioning exists (per-service); gateway deploy script does not.**
-  `gateway-svc/scripts/provision-pubsub.sh` and `claude-automator/scripts/provision-pubsub.sh`
+  `gateway-svc/scripts/provision-pubsub.sh` and `claude-automator-dev/claude-automator/scripts/provision-pubsub.sh`
   cover topic/subscription/DLQ creation for the Q&A flow, each provisioning only what it owns
   (plus the repo-root `scripts/provision-pubsub-schema.sh` for the shared envelope schema). A
   `deploy.sh` for the gateway itself was deliberately not written: the gateway is being run
   locally for now rather than deployed to Cloud Run — write this script when that changes.
   Per-function (`xxxsvc`) deploy scripts also remain unstarted since no such function exists in
   the tree yet (`claude-automator` is not a Cloud Run Function and is deployed differently).
+- **No CI pipeline builds/publishes the `claude-automator` image.** Today the image is built
+  locally from a checkout via `docker build -t claude-automator claude-automator-dev/claude-automator`
+  (see `claude-automator-dev/docs/deploy/README.md`) — there's no automation that builds the image
+  on tag/release, pushes it to a registry, or produces a versioned tag. Add a GitHub Actions
+  workflow that checks out the repo, builds the image with that same context, and tags/releases it
+  (e.g. on a version tag push), and publishes it somewhere pullable, once `claude-automator` is
+  treated as a deployable package rather than a build-it-yourself artifact.

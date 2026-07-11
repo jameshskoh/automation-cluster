@@ -23,3 +23,9 @@ of every message per subscription.
 If it times out: confirm the container is up and the loop is running (`../README.md` Part B, step
 5), both services' `provision-pubsub.sh` have been run, and the container's `GCP_PROJECT_ID`/
 topic/subscription env vars match what you're testing against.
+
+If it fails immediately with `IAM_PERMISSION_DENIED` on `pubsub.subscriptions.create`: check
+`echo $GOOGLE_APPLICATION_CREDENTIALS` in your shell — if set, it overrides your own `gcloud` ADC
+for this script's Node client, and a service-account key meant for the deployed service itself
+usually lacks subscription create/delete rights. Run with it unset:
+`env -u GOOGLE_APPLICATION_CREDENTIALS npx tsx smoke-test.mts "..."`.

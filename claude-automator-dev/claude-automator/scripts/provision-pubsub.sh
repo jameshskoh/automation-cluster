@@ -17,8 +17,8 @@ set -euo pipefail
 : "${GCP_PROJECT_ID:?GCP_PROJECT_ID must be set}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-# shellcheck source=../../scripts/pubsub-lib.sh
+REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+# shellcheck source=../../../scripts/pubsub-lib.sh
 source "$REPO_ROOT/scripts/pubsub-lib.sh"
 
 # Owned by claude-automator: outbound topic for the QA use case's ANSWERED stage.

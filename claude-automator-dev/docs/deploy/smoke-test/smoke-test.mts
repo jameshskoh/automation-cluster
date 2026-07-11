@@ -7,7 +7,7 @@ type IReceivedMessage = google.pubsub.v1.IReceivedMessage;
 // Publishes one QA/ASKED envelope to gateway-requests, as the gateway itself would, then waits for
 // the matching QA/ANSWERED reply on claude-automator-responses — confirms a deployment (see
 // ../README.md) works end-to-end. Envelope shape: ../../arch/messaging.md. Schema
-// claude-automator validates against: ../../../.claude/hooks/utils/pubsub-client.ts.
+// claude-automator validates against: ../../../claude-automator/.claude/hooks/utils/pubsub-client.ts.
 //
 // The temporary subscription is created *before* publishing: Pub/Sub subscriptions never receive
 // messages published before they existed, so subscribing first is what makes a fast answer

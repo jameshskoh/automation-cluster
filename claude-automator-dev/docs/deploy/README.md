@@ -35,12 +35,11 @@ Idempotent; `gateway-svc/scripts/provision-pubsub.sh` must run first (see
 ### 1. Build
 
 ```bash
-docker build -t claude-automator --build-arg GIT_REF=main .
+docker build -t claude-automator claude-automator-dev/claude-automator
 ```
 
-`GIT_REF` pins the build to a branch/tag/commit of
-`https://github.com/jameshskoh/automation-cluster` — the Dockerfile clones the repo itself, so the
-image doesn't depend on local build context.
+Run from the repo root. Builds from local build context — no GitHub clone — so this builds
+whatever's on disk, including uncommitted changes.
 
 ### 2. Run
 

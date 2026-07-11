@@ -25,7 +25,11 @@ is event-driven.
 Deployment guides live per-service under `<service>/docs/deploy/`, not centralized under the
 repo-root `docs/`, since ownership of how a service deploys sits with that service and a service
 may need more than one such doc (e.g. one per environment or deploy path). Example: a deploy guide
-for `claude-automator` would live at `claude-automator/docs/deploy/`.
+for `gateway-svc` would live at `gateway-svc/docs/deploy/`.
+
+Exception: `claude-automator`'s docs (including `docs/deploy/`) live at
+`claude-automator-dev/docs/`, a sibling of its code at `claude-automator-dev/claude-automator/` —
+see `claude-automator-dev/AGENTS.md`.
 
 ## Provisioning
 

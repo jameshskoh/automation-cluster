@@ -1,23 +1,12 @@
 # syntax=docker/dockerfile:1
 #
-# `builder` clones the mono-repo from GitHub and runs a full `npm ci` (not --omit=dev: ts-node et
-# al. are devDependencies but run.ts needs them at runtime, not just build time). The final image
-# copies out only claude-automator/ — no .git, no other services, no build tooling.
+# Builds from local build context, not a GitHub clone — check out the repo yourself and build with
+# this directory as context:
+#   docker build -t claude-automator claude-automator-dev/claude-automator
+# Installs a full `npm ci` (not --omit=dev: ts-node et al. are devDependencies but run.ts needs
+# them at runtime, not just build time).
 #
 # See docs/deploy/README.md for how to build/run this image.
-
-FROM node:22-slim AS builder
-
-ARG GIT_REF=main
-
-RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
-
-RUN git clone --depth 1 --branch "${GIT_REF}" \
-    https://github.com/jameshskoh/automation-cluster.git /src
-
-WORKDIR /src/claude-automator
-RUN npm ci
 
 FROM node:22-slim
 
@@ -26,7 +15,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends tmux \
     && npm install -g @anthropic-ai/claude-code
 
 WORKDIR /app
-COPY --from=builder /src/claude-automator /app
+COPY package.json package-lock.json ./
+RUN npm ci
+COPY . .
 
 # .env.example's paths aren't loaded automatically (dotenv only reads a real .env, which doesn't
 # exist in the image), so restate them here as real defaults. Still overridable via `-e`.
