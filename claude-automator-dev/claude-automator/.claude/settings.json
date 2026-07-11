@@ -1,4 +1,16 @@
 {
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "WebFetch"
+    ],
+    "deny": [
+      "Write",
+      "Edit",
+      "NotebookEdit",
+      "Bash"
+    ]
+  },
   "hooks": {
     "SessionStart": [
       {

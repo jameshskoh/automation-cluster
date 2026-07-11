@@ -32,7 +32,14 @@ const gatewayMessageSchema = z.object({
 
 type GatewayMessage = z.infer<typeof gatewayMessageSchema>;
 
-export async function processUsefulMessage(): Promise<string> {
+// The shape handed to the agent: `found` distinguishes an actual task (text = the question) from
+// the no-task case (text = the fixed "Nothing to do." sentinel), so callers never need to
+// pattern-match on message content to tell them apart.
+export type PollResult =
+    | {found: true; text: string}
+    | {found: false; text: "Nothing to do."};
+
+export async function processUsefulMessage(): Promise<PollResult> {
     for (let i = 0; i < config.POLL_COUNT; i++) {
         console.debug("Starting")
         const pubSubResult = await pollPubSub();
@@ -46,12 +53,14 @@ export async function processUsefulMessage(): Promise<string> {
             await cleanupFile(config.ACK_ID_PATH);
             await writeContent(config.ACK_ID_PATH, ackId)
 
-            return message.metadata;
+            return {found: true, text: message.metadata};
         }
         console.debug("Got nothing this round. Waiting for the next round ...")
         if (i < config.POLL_COUNT - 1) await sleep(config.POLL_INTERVAL_MS);
     }
-    return `Polled ${config.POLL_COUNT} times. Nothing to do now.`;
+    // Poll-count/interval are operational tuning, not something the agent should see or reason
+    // about — the agent only needs to know there's no task.
+    return {found: false, text: "Nothing to do."};
 }
 
 export type SendResult =
