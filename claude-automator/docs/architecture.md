@@ -93,6 +93,8 @@ the three disk-file paths, `POLL_INTERVAL_MS`/`POLL_COUNT`, and `OTLP_METRICS_UR
 - [`docs/arch/metrics.md`](arch/metrics.md) — what's emitted to OTLP and at which point in the
   flow.
 - [`docs/use-cases/`](use-cases/) — sequence diagrams for the happy path and edge cases.
+- [`docs/deploy/README.md`](deploy/README.md) — how to build and run this module as a Docker
+  container, including the deliberately manual `ANTHROPIC_API_KEY` setup step and a smoke test.
 
 ## Accepted risks / not yet solved
 

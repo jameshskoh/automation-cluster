@@ -18,6 +18,14 @@ is event-driven.
   for the required format; `qa.md` is the only live use case).
 - **The gateway module** — [`gateway-svc/AGENTS.md`](gateway-svc/AGENTS.md): clean-architecture
   module rules, package/naming conventions, build & run commands.
+- **Deployment guides** — per-service, see "Deployment guides" below.
+
+## Deployment guides
+
+Deployment guides live per-service under `<service>/docs/deploy/`, not centralized under the
+repo-root `docs/`, since ownership of how a service deploys sits with that service and a service
+may need more than one such doc (e.g. one per environment or deploy path). Example: a deploy guide
+for `claude-automator` would live at `claude-automator/docs/deploy/`.
 
 ## Provisioning
 
