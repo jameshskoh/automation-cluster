@@ -1,3 +1,7 @@
+---
+status: ACCEPTED
+---
+
 # Architecture: claude-automator
 
 ## Overview
@@ -105,15 +109,15 @@ the three disk-file paths, `POLL_INTERVAL_MS`/`POLL_COUNT`, and `OTLP_METRICS_UR
 - **Ack-after-publish failure risks a duplicate answer.** If `subClient.acknowledge()` throws after
   a successful publish, the exception is caught by `end-session.ts`'s generic handler and
   mislabeled `reason=publish_error`, but the input message is never acked and will redeliver —
-  tracked in the repo-root [`docs/to-do.md`](../../docs/to-do.md).
+  tracked in the repo-root [`docs/backlog.md`](../../docs/backlog.md).
 - **A silent disk-write failure in `SessionStart` can discard a session's answer.**
   `writeContent()`'s return value isn't checked when writing `UUID_PATH`/`ACK_ID_PATH`; a failed
   write there means `Stop` later aborts with `uuid_missing`, redelivering the input message but
-  losing the answer the session already produced. Also tracked in `to-do.md`.
+  losing the answer the session already produced. Also tracked in `backlog.md`.
 - **"Nothing to do" reports as a metric failure.** The benign empty-poll case and a genuine
   publish/ack error both currently land under `outcome=failure`, `reason=uuid_missing` /
   similar — conflating expected and unexpected outcomes in failure-rate metrics. See `metrics.md`
-  and `to-do.md`.
+  and `backlog.md`.
 
-See the repo-root [`docs/to-do.md`](../../docs/to-do.md) for the full list of deferred items and
+See the repo-root [`docs/backlog.md`](../../docs/backlog.md) for the full list of deferred items and
 where this module's code diverges from documented design.

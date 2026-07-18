@@ -1,3 +1,7 @@
+---
+status: ACCEPTED
+---
+
 # Messaging: envelope, schema enforcement, schema evolution
 
 The shared message contract every service publishes and consumes. See
@@ -60,4 +64,4 @@ native optional-field semantics:
 - New fields may be added, and must be optional with a sensible default so that services running
   an older version of the schema continue to work unmodified.
 - A CI/code-review check should confirm a new schema revision only adds optional fields —
-  tracked as a roadmap item in `../to-do.md` (not yet implemented).
+  tracked as a roadmap item in `../backlog.md` (not yet implemented).

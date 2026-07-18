@@ -1,3 +1,7 @@
+---
+status: ACCEPTED
+---
+
 # claude-automator: happy path
 
 How a single request flows through `claude-automator` end to end, on the happy path (no empty

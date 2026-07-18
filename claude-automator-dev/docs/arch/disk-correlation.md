@@ -1,3 +1,7 @@
+---
+status: ACCEPTED
+---
+
 # Cross-process correlation via disk files
 
 ## Context
@@ -31,5 +35,5 @@ publish/ack never leaves the Claude Code process running past the end of its tur
 ## Known gap
 
 This is file-based correlation, not an in-process mechanism — see the repo-root
-`docs/to-do.md` for the standing item to replace it. Revisit if/when `claude-automator` needs to
+`docs/backlog.md` for the standing item to replace it. Revisit if/when `claude-automator` needs to
 handle concurrent sessions or becomes less single-process-per-request in shape.
