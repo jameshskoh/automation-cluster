@@ -143,3 +143,18 @@ mismatches between the current codebase and the standards described there.
   workflow that checks out the repo, builds the image with that same context, and tags/releases it
   (e.g. on a version tag push), and publishes it somewhere pullable, once `claude-automator` is
   treated as a deployable package rather than a build-it-yourself artifact.
+
+## Sub-agent workflow (dev tooling)
+
+- **The architecture-first sub-agent pipeline's phase gates are convention-only, not enforced.**
+  The gated pipeline (`system-architect` → `service-architect` → `implementer`, see the "Sub-agent
+  workflow" section of the repo-root `AGENTS.md`) relies on rules stated in `AGENTS.md` — don't
+  skip a phase, don't write outside a service's docs scope, don't implement against a
+  non-`ACCEPTED` design, stay off `main`. But `AGENTS.md` is context Claude reads, not enforced
+  configuration: there is no compliance guarantee, so any of these gates *can* be skipped,
+  especially on a vague or ambiguous request. **Rough next step:** add a `PreToolUse` hook as a
+  hard enforcement layer — e.g. block the `implementer` sub-agent's `Write`/`Edit` unless the
+  target service's `architecture.md` is `status: ACCEPTED`, and/or path-scoped `permissions`
+  rules confining each architect's `Write`/`Edit` to its own docs root (`docs/**` for
+  `system-architect`, `<service>/docs/**` for `service-architect`). Revisit if the convention-only
+  version misfires in practice.

@@ -1,3 +1,7 @@
+---
+status: ACCEPTED
+---
+
 # Architecture
 
 ## Overview
@@ -59,7 +63,7 @@ takes — eventually arrives back at the gateway as another message, keyed by `r
   gateway looks up the registry entry, invokes the callback, and removes the entry.
 - **Current implementation note**: the registry is in-memory only (single gateway instance
   assumption). Distributed/persistent callback handling is intentionally deferred — see
-  `to-do.md`.
+  `backlog.md`.
 
 ### Per-use-case timeout
 
@@ -71,7 +75,7 @@ Every use case must declare a timeout. The gateway starts a timer when it regist
 2. The gateway removes the `request_id` entry from its registry.
 
 This is the sole failure-detection mechanism for a stuck/failed mid-chain function today — there
-is no dedicated "error" message stage (see `to-do.md` for a possible fast-fail short-circuit).
+is no dedicated "error" message stage (see `backlog.md` for a possible fast-fail short-circuit).
 
 ### Graceful shutdown
 
@@ -88,7 +92,7 @@ Configured via `application.yaml`, three stages:
 A newly started gateway instance has an empty registry. If it receives a response message for a
 `request_id` it never registered (e.g. because the previous instance shut down and this is a
 stale/duplicate redelivery), it logs a warning and discards the message. This is a deliberate,
-accepted gap under the current in-memory/single-instance design — see `to-do.md`.
+accepted gap under the current in-memory/single-instance design — see `backlog.md`.
 
 ## Functions
 
@@ -116,7 +120,7 @@ writing to databases, other side effects a function may perform:
   (e.g. "poll this external async job again in 30s") — distinct from Pub/Sub's transient-failure
   redelivery. A function creates a one-time Cloud Task with a future `scheduleTime` targeting its
   own HTTP entrypoint. Not yet used by any use case; the full pattern and its trigger condition
-  live in `to-do.md`.
+  live in `backlog.md`.
 
 ## Conventions (detail docs)
 
@@ -133,10 +137,10 @@ this page stays focused on the system model. Read them when building or provisio
 
 - **A/B/C never share a database.** Stages in a use case are assumed not to have cross-stage data
   races since they don't share storage; this is accepted as a risk rather than actively verified.
-  Tracked in `to-do.md`.
+  Tracked in `backlog.md`.
 - **In-memory callback registry.** The gateway's `request_id → callback` map is not persisted or
   distributed. A gateway restart loses in-flight registrations (mitigated somewhat by the
   graceful-shutdown drain/force-fail sequence above, but a hard crash still loses state).
-  Distributed/persistent handling is deferred — see `to-do.md`.
+  Distributed/persistent handling is deferred — see `backlog.md`.
 
-See `to-do.md` for the full roadmap and known gaps against this design.
+See `backlog.md` for the full roadmap and known gaps against this design.

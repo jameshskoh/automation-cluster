@@ -1,3 +1,7 @@
+---
+status: ACCEPTED
+---
+
 # Messaging mechanism
 
 ## Overview: Pub/Sub as the transport
@@ -14,7 +18,7 @@ A Pub/Sub subscription can deliver by **push** (Pub/Sub calls an HTTP endpoint t
 exposes) or **pull** (the consumer calls the API itself). Push is ruled out for this module, not
 just unexplored: it requires a stable, publicly reachable HTTPS endpoint registered on the
 subscription ahead of time, and claude-automator has no such endpoint to offer — it runs without
-public ingress (see the repo-root [`docs/to-do.md`](../../../docs/to-do.md): "the gateway is being
+public ingress (see the repo-root [`docs/backlog.md`](../../../docs/backlog.md): "the gateway is being
 run locally for now rather than deployed to Cloud Run"). Standing one up would mean adding a new
 always-on component just to host it, which is a different architecture, not a tweak to this one.
 

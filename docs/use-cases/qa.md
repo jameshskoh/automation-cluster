@@ -1,8 +1,12 @@
+---
+status: ACCEPTED
+---
+
 # Use case: QA
 
 - `use_case` value: `QA`
 - Timeout: 300000 ms (5 minutes) — matches `qa.async.timeout-millis` in `gateway-svc`'s
-  `application.yaml` today; see `../to-do.md` for generalizing this into a declared per-use-case
+  `application.yaml` today; see `../backlog.md` for generalizing this into a declared per-use-case
   property.
 - Message shape: the question and the answer are each conversational text, so both carry their
   content in the envelope's `metadata` field; `payload` is sent empty (`""`) on both legs. This is
@@ -42,7 +46,7 @@ each script's header comment for the exact order dependency). Once both topics e
 
 ## Known gaps for this use case
 
-See `../to-do.md` for full detail. Notably: claude-automator still correlates requests via files
+See `../backlog.md` for full detail. Notably: claude-automator still correlates requests via files
 on disk (`UUID_PATH`, `ACK_ID_PATH`, populated from the envelope's `request_id`) rather than an
 in-process mechanism. It does now validate the inbound envelope body (shape + `use_case`/`stage`)
 against a zod schema before acting, nacking messages that fail validation.

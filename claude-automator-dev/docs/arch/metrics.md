@@ -1,3 +1,7 @@
+---
+status: ACCEPTED
+---
+
 # Metrics
 
 ## What's emitted
@@ -27,4 +31,4 @@ sit in the overall sequence.
 
 The `Stop`/`uuid_missing` row also fires on the benign "nothing to do" case (see
 [`../use-cases/nothing-to-do.md`](../use-cases/nothing-to-do.md)), which isn't really a failure —
-tracked in the repo-root `docs/to-do.md`, not fixed yet.
+tracked in the repo-root `docs/backlog.md`, not fixed yet.

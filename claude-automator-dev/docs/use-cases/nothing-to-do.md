@@ -1,3 +1,7 @@
+---
+status: ACCEPTED
+---
+
 # claude-automator: nothing to do
 
 What happens when `SessionStart` polls the input subscription and finds no message for

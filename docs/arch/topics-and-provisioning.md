@@ -1,3 +1,7 @@
+---
+status: ACCEPTED
+---
+
 # Topics, subscriptions, and provisioning
 
 How the [messaging envelope](messaging.md) is carried on GCP Pub/Sub: topic/subscription/DLQ
