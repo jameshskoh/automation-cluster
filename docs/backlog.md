@@ -16,6 +16,11 @@ mismatches between the current codebase and the standards described there.
   is expected, benign behavior, not a real failure. It conflates with genuine publish/ack errors
   in failure-rate metrics. Needs its own outcome (or to be skipped entirely) instead of reusing
   `failure`.
+- **claude-automator's benign-empty detection is metadata-only.** `pollPubSub()`
+  (`pubsub-client.ts`) ack-drops a message when `metadata == ""`, assuming the meaningful content
+  always lives in `metadata`. WEATHER is safe (its interpretation prompt is always in `metadata`),
+  but a future use case that carries content only in `payload` would be mis-detected as an empty
+  no-op and silently ack-dropped. Make the no-op test use-case-aware if such a use case appears.
 - **claude-automator's failure paths aren't diagrammed yet.** `claude-automator-dev/docs/use-cases/`
   currently has `happy-path.md` and `nothing-to-do.md` — the success case and the empty-poll case.
   At least three other paths exist in the code but aren't written up anywhere as sequence
@@ -127,6 +132,9 @@ mismatches between the current codebase and the standards described there.
   than relying on the Pub/Sub subscription filter as its sole data-contract check. Remaining gap:
   it still correlates requests via files on disk (`UUID_PATH`, `ACK_ID_PATH`, populated from the
   envelope's `request_id`) rather than an in-process mechanism. That remains unstarted.
+  Note: the former "outbound `use_case`/`stage` hardcoded to `QA`/`ANSWERED`" limitation is
+  resolved by the WEATHER pass (task T2) — `use_case` is now carried across the SessionStart→Stop
+  boundary via `USE_CASE_PATH` and echoed outbound. The disk-based correlation itself remains.
 - **No per-use-case timeout configuration.** `gateway-svc` has a `qa.async.timeout-millis` (HTTP
   long-poll timeout) and a separate `qa.pending.ttl-millis` (registry eviction sweep), which
   together approximate the gateway's timeout-then-cleanup design — but this is hardcoded to the

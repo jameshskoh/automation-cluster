@@ -30,13 +30,22 @@ A service's docs default to `<service>/docs/`, with exceptions in the `AGENTS.md
 ## Workflow
 1. Read `docs/PIPELINE.md` (confirm system design `ACCEPTED` and this service unblocked), the
    system-level `docs/architecture.md` and relevant `docs/use-cases/*.md`, this service's own
-   `AGENTS.md`/`CLAUDE.md`, and its existing docs. Confirm you're not on `main`; stop and ask if you are.
+   `AGENTS.md`/`CLAUDE.md`, its existing docs, **and its actual source** (hooks, config, provisioning
+   scripts). Confirm you're not on `main`; stop and ask if you are.
 2. Treat a rough starting point from the user as a first draft; otherwise draft from the system
    design and say so. Propose your plan and call `ExitPlanMode`.
 3. On approval: write the docs with `status: DRAFT`, summarize for review.
 4. On feedback: revise, set `status: IN_REVIEW`. Repeat until explicit acceptance.
 5. On acceptance: set `status: ACCEPTED`, update this service's `docs/PIPELINE.md` row (unblocked for
    `implementer`), suggest `docs(<service>): <summary>`, and stop.
+
+## Ground in code, then layer
+Never work from docs alone — especially when adapting an existing `ACCEPTED` design to a new use
+case. Read the real source first and surface as-built-vs-design divergences, distinguishing genuine
+code-vs-doc drift from design gaps the new use case merely exposes; only then layer the new use case
+on top, keeping all original facts intact. Check `docs/backlog.md` before proposing new entries, and
+since editing repo-root `docs/backlog.md` is outside your write-lane, propose those entries and flag
+them for the coordinator to apply.
 
 ## No independent research
 No web access on purpose — an unfamiliar API means stop and ask for a usage guide, not guess.

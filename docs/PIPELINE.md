@@ -24,21 +24,38 @@ built with gaps tracked in `docs/backlog.md`.
 | Service | Design (service-architect) | Implementation (implementer) | Docs root |
 |---|---|---|---|
 | `gateway-svc` | ACCEPTED¹ | IN_PROGRESS² | `gateway-svc/docs/` (design currently in system docs + `gateway-svc/AGENTS.md`) |
-| `claude-automator` | ACCEPTED | ACCEPTED³ | `claude-automator-dev/docs/` |
+| `claude-automator` | ACCEPTED (QA); WEATHER DRAFT | ACCEPTED³ (QA) | `claude-automator-dev/docs/` |
 | `weather-svc` | ACCEPTED⁴ | NOT_STARTED | `weather-svc/docs/` |
 
 ¹ No separate `gateway-svc/docs/architecture.md` yet — design is in the system-level `docs/` and
   `gateway-svc/AGENTS.md`. A future `service-architect` pass could formalize it under `gateway-svc/docs/`.
 ² Q&A flow runs end-to-end (see smoke tests); graceful-shutdown drain/force-fail and per-use-case
   timeout config are deferred (`docs/backlog.md`).
-³ Live, deployable (Docker); remaining gaps (no tests, disk-based correlation, "nothing to do"
-  mislabeled as failure) tracked in `docs/backlog.md`. The WEATHER use case adds a second inbound
-  flow for claude-automator — see the WEATHER technical notes below.
+³ QA flow live, deployable (Docker); remaining gaps (no tests, disk-based correlation, "nothing to
+  do" mislabeled as failure) tracked in `docs/backlog.md`. WEATHER design pass is DRAFT
+  (`claude-automator-dev/docs/architecture.md`, `arch/messaging.md`, `arch/disk-correlation.md`, new
+  `use-cases/weather.md`): adds a second inbound subscription, generalizes inbound zod validation to
+  `WEATHER`/`FETCHED`, adds a `USE_CASE_PATH` correlation file for outbound `use_case` pass-through +
+  ack routing, and assembles prompt (`metadata`) + data (`payload`) with `<prompt>…</prompt>
+  <data>…</data>` tags. Carries a T1–T4 phase-3 breakdown; `@implementer claude-automator` runs once
+  it's ACCEPTED. See the WEATHER technical notes below.
 ⁴ Phase-2 design ACCEPTED — `weather-svc/docs/architecture.md` (+ `arch/open-meteo-integration.md`,
   `arch/messaging.md`, `use-cases/weather.md`). Plain Java 21 Cloud Run function (no Spring Boot),
   `HttpFunction` behind a Pub/Sub push subscription, open-meteo geocode+forecast with 4×6h block
   aggregation, `FETCHED`/`FAILED` error short-circuit. Carries a 7-task (T1–T7) phase-3 breakdown, so
-  `@implementer weather-svc` can run. See the deploy-order dependency in the WEATHER technical notes.
+  `@implementer weather-svc` can run. See "Deployment order" below.
+
+## Deployment order
+
+Cross-service deploy-**ordering** constraints — distinct from the per-service deploy guides under
+`<service>/docs/deploy/`, which cover *how* to deploy one service. A constraint here belongs to no
+single service, so it lives in this read-first index.
+
+- **claude-automator before weather-svc.** claude-automator must be deployed accepting
+  `WEATHER`/`FETCHED` before weather-svc goes live. Until then, weather-svc's `FETCHED` messages
+  nack → DLQ at claude-automator and surface only as a gateway timeout (the error short-circuit
+  covers weather-svc's own `FAILED`, not a claude-automator inbound rejection). Tracked as an
+  accepted-risk in `claude-automator-dev/docs/architecture.md`.
 
 ## Up next
 
@@ -50,9 +67,15 @@ built with gaps tracked in `docs/backlog.md`.
   three fronts — weather-svc (new service), a claude-automator revisit, and gateway phase-3 —
   detailed per-phase in the WEATHER technical notes below.
 - weather-svc phase-2 design ACCEPTED (`weather-svc/docs/`). Plain Java 21 Cloud Run function + push
-  subscription; carries a T1–T7 phase-3 breakdown. Next: `@implementer weather-svc` — but honor the
-  deploy-order dependency (claude-automator must accept `WEATHER`/`FETCHED` before weather-svc goes
-  live). claude-automator and gateway phase-3 remain per the WEATHER technical notes.
+  subscription; carries a T1–T7 phase-3 breakdown. Next: `@implementer weather-svc` — but honor
+  "Deployment order" (claude-automator before weather-svc). claude-automator and gateway phase-3
+  remain per the WEATHER technical notes.
+- claude-automator WEATHER design pass DRAFT (`@service-architect claude-automator`) — service docs
+  adapted to the WEATHER inbound flow (second subscription, generalized validation, `USE_CASE_PATH`
+  pass-through, prompt/data XML assembly) with a T1–T4 phase-3 breakdown. Next: user review →
+  ACCEPTED, then `@implementer claude-automator` (respecting "Deployment order"). Two
+  backlog entries proposed for the coordinator to apply to `docs/backlog.md` (outside the service's
+  write-lane).
 
 ## WEATHER — technical notes for downstream phases
 
@@ -73,7 +96,7 @@ produces the real design; the flow's source of truth is `docs/use-cases/weather.
   touch first): add a 2nd inbound subscription (`claude-automator-weather-svc-results-sub` on
   `weather-svc-results`, filter `WEATHER AND FETCHED`); generalize the inbound zod validation beyond
   the hardcoded `QA`/`ASKED` to accept `WEATHER`/`FETCHED` (until this ships those messages nack →
-  DLQ and surface only as a timeout, so it must deploy before weather-svc goes live); consume
+  DLQ and surface only as a timeout — this is the "Deployment order" constraint above); consume
   `payload` + `metadata` by concatenating prompt (`metadata`) + data (`payload`) with an XML-tag
   delimiter; publish `WEATHER`/`ANSWERED` on `claude-automator-responses`.
 - **gateway** (→ `@implementer`): add the `/get-weather <city>, <state>` Slack command (Socket Mode,
