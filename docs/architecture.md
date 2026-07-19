@@ -74,8 +74,25 @@ Every use case must declare a timeout. The gateway starts a timer when it regist
    as a real response.
 2. The gateway removes the `request_id` entry from its registry.
 
-This is the sole failure-detection mechanism for a stuck/failed mid-chain function today — there
-is no dedicated "error" message stage (see `backlog.md` for a possible fast-fail short-circuit).
+The timeout is the catch-all: it covers any request that never produces a terminal message,
+including a function that hangs or crashes mid-chain. A function that can *detect* its own expected
+terminal failure may additionally fail fast via the error short-circuit below.
+
+### Error short-circuit (terminal error stage)
+
+A function that detects an expected, terminal failure (e.g. invalid user input, or an upstream data
+source returning no usable result) may publish a terminal **error stage** (conventionally `FAILED`)
+on its own topic instead of continuing the chain. The message carries the originating `request_id`
+and a human-readable reason. The gateway owns a subscription filtered to that error stage; on
+receipt it fails the caller through the same failure-response + registry-cleanup path used for
+timeouts, *before* the per-use-case timeout would elapse — so the caller fails faster and gets a
+specific message ("no match for that city in that state") instead of a generic timeout.
+
+The convention is **optional and per-stage**: a use case adopts it only for failures a function can
+classify as terminal. Failures it cannot detect (a hung/crashed function, or an LLM stage that
+silently produces nothing) still fall back to the timeout. Extending it to another function later
+needs only a new filtered gateway subscription — no change to the gateway's core
+registry/timeout/shutdown logic. Rollout state is tracked in `backlog.md`.
 
 ### Graceful shutdown
 

@@ -110,6 +110,9 @@ before writing, then continue read/write in the same run. Requires the **main se
   - `docs(system): <summary>` — phase 1
   - `docs(<service>): <summary>` — phase 2
   - `feat(<service>): <summary>` — phase 3
+- **The staging area is the user's.** Expect the user to stage changes between phases so they can
+  review the next phase's diff (staged = prior baseline, unstaged = new work). Never run `git add`,
+  `git restore --staged`, `git reset`, or anything else that moves the staging line.
 - **No independent research.** A gap needing outside knowledge means stop and ask for a usage guide,
   not guess.
 - **Enforcement is by convention**, not platform-enforced — a hard `PreToolUse`-hook layer is

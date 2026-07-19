@@ -62,12 +62,16 @@ mismatches between the current codebase and the standards described there.
 - **Schema evolution enforcement**: the rule (no field removal, new fields must be optional with
   defaults) is currently a convention only. No CI or code-review checklist item enforces that a
   new Protobuf schema revision doesn't remove/renumber fields.
-- **Fast-fail / error short-circuit**: today, a mid-chain function failure is only detected by the
-  gateway's per-use-case timeout — a deliberate, fast, "expected" failure (e.g. invalid user
-  input) looks identical to a hung request until the timeout elapses. A lightweight optional
-  `error` stage convention (a function publishes directly to this stage on an expected failure,
-  short-circuiting to the gateway) could let the gateway fail fast instead of waiting out the
-  timeout. Not designed in detail; revisit if fast-fail UX becomes a requirement.
+- **Fast-fail / error short-circuit** — *designed; first adopter partial, rollout + impl remaining.*
+  Defined in `architecture.md` ("Error short-circuit"): an optional terminal `FAILED` stage carrying
+  `request_id` + reason, which the gateway subscribes to and fails the caller via the timeout path
+  before the timeout elapses. First adopter is WEATHER (`docs/use-cases/weather.md`), where
+  weather-svc publishes `FAILED` on a city-match or forecast-retrieval failure.
+  - **Remaining**: v1 covers only weather-svc's failures; claude-automator/LLM stages and any
+    hung/crashed function still fall back to the timeout — extending needs only a new filtered
+    gateway subscription per error stage. Still to build: the gateway-side generic handler mapping
+    an inbound error stage → failure delivery + registry eviction (phase-3, see `PIPELINE.md`'s
+    WEATHER technical notes).
 - **Cloud Tasks delayed/scheduled continuation**: documented in `architecture.md` as a pattern for
   when a function needs to "come back later" outside of Pub/Sub's own retry policy (e.g. polling
   an external async job). No current use case needs this yet — implement when one does.
@@ -123,7 +127,9 @@ mismatches between the current codebase and the standards described there.
   together approximate the gateway's timeout-then-cleanup design — but this is hardcoded to the
   one Q&A use case rather than being a declared, per-use-case property as `architecture.md`
   describes. Generalizing this to a per-use-case timeout config (so a new use case can declare its
-  own timeout without touching shared config keys) is unstarted.
+  own timeout without touching shared config keys) is unstarted. **Now forced by WEATHER**, which
+  declares a 2-minute timeout (`docs/use-cases/weather.md`) the flat `qa.*` keys can't express —
+  phase-3 gateway work, see `PIPELINE.md`'s WEATHER technical notes.
 - **No graceful-shutdown drain/force-fail/forced-shutdown sequence implemented.** Nothing in
   `gateway-bootstrap` currently drains in-flight registry entries or force-fails them on shutdown;
   only the TTL sweeper exists, which is a different mechanism (periodic eviction, not a shutdown
