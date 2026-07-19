@@ -23,6 +23,7 @@ COPY . .
 # exist in the image), so restate them here as real defaults. Still overridable via `-e`.
 ENV UUID_PATH=./data/uuid.txt \
     ACK_ID_PATH=./data/ack-id.txt \
+    USE_CASE_PATH=./data/use-case.txt \
     PID_FILE=./data/claude-automator.pid
 
 # Nothing auto-starts: the outer loop and its ANTHROPIC_API_KEY are wired up manually, in an

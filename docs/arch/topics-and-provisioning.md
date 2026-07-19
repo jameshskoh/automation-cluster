@@ -24,6 +24,14 @@ ownership and naming, and the per-service provisioning-script convention. See
 - Naming convention: topic = `<owning-publisher>-<purpose>` (e.g. a function's own outbound
   topic is named after that function, not after whoever reads it). Subscription =
   `<consuming-service>-<topic-name>-sub`.
+  - **Multiple subscriptions from one consumer on one topic** collide under the base name (each
+    needs a distinct `use_case`/`stage` filter, since filters are immutable). Disambiguate by
+    inserting the use_case: `<consumer>-<topic-name>-<use_case>-sub` (DLQ:
+    `<topic>-<consumer>-<use_case>-sub-dlq`). Apply the longer form only to the *additional*
+    subscription(s); a pre-existing one keeps its shorter name (renaming means delete-and-recreate).
+    Example: the gateway consumes `claude-automator-responses` for both QA and WEATHER — QA stays
+    `gateway-claude-automator-responses-sub`, WEATHER is
+    `gateway-claude-automator-responses-weather-sub`.
 - DLQ convention: **one DLQ topic per subscription that needs one**, named `<topic>-<sub>-dlq`
   (GCP Pub/Sub's dead-letter feature is configured per-subscription; there is no built-in global
   DLQ primitive). This keeps a failure signal next to the stage that produced it and makes
@@ -72,6 +80,15 @@ Consequences of this split, worth knowing before running these scripts:
   `describe` check sees the subscription already exists and skips it, silently leaving the old
   filter live, because **Pub/Sub subscription filters are immutable after creation**. Changing a
   filter requires deleting and recreating the subscription.
+- **Cross-service dependency cycles are possible.** With three or more services each publishing a
+  topic another consumes, no single linear run order may satisfy every
+  topic-before-its-subscription constraint — e.g. the gateway owns `gateway-requests` (weather-svc
+  subscribes) yet also subscribes to `weather-svc-results`, so its script must run both before and
+  after weather-svc. Because the scripts are idempotent (skip-existing), a second pass breaks the
+  cycle: create the topics first, then re-run the entry-point script so its subscriptions find their
+  targets. A topics-first/subs-second split of each script would let a single sweep work instead —
+  left to the script author, not mandated here. WEATHER is the first to hit this; see
+  [`../use-cases/weather.md`](../use-cases/weather.md)'s run-order section.
 - The use-case doc (see [`../use-cases/README.md`](../use-cases/README.md)) is still the place a
   developer looks to see the *whole* cross-service picture (which topics/subscriptions/filters
   exist for this use case) — it links out to whichever services' scripts actually provision each
