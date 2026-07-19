@@ -135,6 +135,15 @@ mismatches between the current codebase and the standards described there.
   own timeout without touching shared config keys) is unstarted. **Now forced by WEATHER**, which
   declares a 2-minute timeout (`docs/use-cases/weather.md`) the flat `qa.*` keys can't express —
   phase-3 gateway work, see `PIPELINE.md`'s WEATHER technical notes.
+- **Gateway publish failure only logs; it should synchronously fail the request.**
+  `PubSubGatewayMessagePublisher` (`gateway-svc`) publishes non-blocking and, on a publish failure,
+  only logs — the request then falls through to the timeout. `arch/messaging.md` ("Schema
+  enforcement", gateway exception) requires the gateway to catch a failed publish synchronously and
+  immediately fail the request through the same failure-response + registry-cleanup path used for
+  timeouts, since the gateway (as the first publisher of a use case) has no upstream subscription/DLQ
+  for a failed publish to dead-letter into. Documented as an as-built divergence in
+  `../gateway-svc/docs/architecture.md` ("Outbound publisher" / "As-built divergences"); fixing it is
+  deferred.
 - **No graceful-shutdown drain/force-fail/forced-shutdown sequence implemented.** Nothing in
   `gateway-bootstrap` currently drains in-flight registry entries or force-fails them on shutdown;
   only the TTL sweeper exists, which is a different mechanism (periodic eviction, not a shutdown
