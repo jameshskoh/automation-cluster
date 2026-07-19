@@ -72,6 +72,11 @@ mismatches between the current codebase and the standards described there.
     gateway subscription per error stage. Still to build: the gateway-side generic handler mapping
     an inbound error stage → failure delivery + registry eviction (phase-3, see `PIPELINE.md`'s
     WEATHER technical notes).
+- **No retry on transient open-meteo errors (weather-svc).** v1 weather-svc publishes `FAILED`
+  immediately on a transient open-meteo failure (5xx / network / timeout), with no in-process
+  retry/backoff before giving up (`weather-svc/docs/architecture.md`, "Error posture"; the calls are
+  read-only, so a retry is safe). A bounded retry before falling back to `FAILED` would cut spurious
+  failures; deferred until it proves necessary.
 - **Cloud Tasks delayed/scheduled continuation**: documented in `architecture.md` as a pattern for
   when a function needs to "come back later" outside of Pub/Sub's own retry policy (e.g. polling
   an external async job). No current use case needs this yet — implement when one does.

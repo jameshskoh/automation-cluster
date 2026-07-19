@@ -25,7 +25,7 @@ built with gaps tracked in `docs/backlog.md`.
 |---|---|---|---|
 | `gateway-svc` | ACCEPTED¹ | IN_PROGRESS² | `gateway-svc/docs/` (design currently in system docs + `gateway-svc/AGENTS.md`) |
 | `claude-automator` | ACCEPTED | ACCEPTED³ | `claude-automator-dev/docs/` |
-| `weather-svc` | NOT_STARTED⁴ | NOT_STARTED | `weather-svc/docs/` (empty scaffold) |
+| `weather-svc` | ACCEPTED⁴ | NOT_STARTED | `weather-svc/docs/` |
 
 ¹ No separate `gateway-svc/docs/architecture.md` yet — design is in the system-level `docs/` and
   `gateway-svc/AGENTS.md`. A future `service-architect` pass could formalize it under `gateway-svc/docs/`.
@@ -34,9 +34,11 @@ built with gaps tracked in `docs/backlog.md`.
 ³ Live, deployable (Docker); remaining gaps (no tests, disk-based correlation, "nothing to do"
   mislabeled as failure) tracked in `docs/backlog.md`. The WEATHER use case adds a second inbound
   flow for claude-automator — see the WEATHER technical notes below.
-⁴ Now unblocked — `docs/use-cases/weather.md` is ACCEPTED, so the WEATHER use case exists at system
-  level and `@service-architect weather-svc` can run. Downstream handoff detail is in the WEATHER
-  technical notes below.
+⁴ Phase-2 design ACCEPTED — `weather-svc/docs/architecture.md` (+ `arch/open-meteo-integration.md`,
+  `arch/messaging.md`, `use-cases/weather.md`). Plain Java 21 Cloud Run function (no Spring Boot),
+  `HttpFunction` behind a Pub/Sub push subscription, open-meteo geocode+forecast with 4×6h block
+  aggregation, `FETCHED`/`FAILED` error short-circuit. Carries a 7-task (T1–T7) phase-3 breakdown, so
+  `@implementer weather-svc` can run. See the deploy-order dependency in the WEATHER technical notes.
 
 ## Up next
 
@@ -47,6 +49,10 @@ built with gaps tracked in `docs/backlog.md`.
 - WEATHER use case ACCEPTED (`docs/use-cases/weather.md`). Downstream work now unblocked across
   three fronts — weather-svc (new service), a claude-automator revisit, and gateway phase-3 —
   detailed per-phase in the WEATHER technical notes below.
+- weather-svc phase-2 design ACCEPTED (`weather-svc/docs/`). Plain Java 21 Cloud Run function + push
+  subscription; carries a T1–T7 phase-3 breakdown. Next: `@implementer weather-svc` — but honor the
+  deploy-order dependency (claude-automator must accept `WEATHER`/`FETCHED` before weather-svc goes
+  live). claude-automator and gateway phase-3 remain per the WEATHER technical notes.
 
 ## WEATHER — technical notes for downstream phases
 

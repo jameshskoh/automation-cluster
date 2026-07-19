@@ -124,6 +124,21 @@ accepted gap under the current in-memory/single-instance design — see `backlog
     still be *safe to retry*: reprocessing must not duplicate downstream publishes or otherwise
     double-apply side effects that aren't idempotent by nature.
 
+### Runtime stack (stateless functions)
+
+Stateless `xxxsvc` functions use a **plain Java Cloud Run function on the GCP Functions Framework** —
+**not Spring Boot**. Spring Boot is reserved for the always-on, stateful gateway (`gateway-svc`); a
+short-lived function gains nothing from a Spring context and only pays its cold-start and wiring cost.
+The stack (single Maven module; `functions-framework-api`, `libraries-bom` + `google-cloud-pubsub`,
+gson, JDK `java.net.http.HttpClient`) is modeled on the knowledge-base POC
+`knowledgebase/frameworks/gcp/function/cloud-run-java-pubsub-relay-poc.md`.
+
+Prefer a plain **`HttpFunction` behind a Pub/Sub push subscription** over an Eventarc trigger, so the
+consumer-owned-subscription + immutable-filter + per-subscription-DLQ conventions in
+[`arch/topics-and-provisioning.md`](arch/topics-and-provisioning.md) hold (an Eventarc trigger manages
+its own hidden subscription); parse the push envelope manually. First adopter: `weather-svc` (see
+`weather-svc/docs/architecture.md`). Revisit only for a stateful/always-on service like the gateway.
+
 ### Side effects in functions
 
 Side effects are expected and encouraged inside a function. Beyond calling external APIs and
