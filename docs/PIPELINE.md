@@ -97,6 +97,16 @@ single service, so it lives in this read-first index.
   `claude-automator-dev/docs/deploy/README.md`) is the remaining step before "Deployment order"
   allows weather-svc to go live. Next: `@implementer weather-svc` (build first; still honor
   "Deployment order" for go-live) and/or `@implementer gateway-svc` for its WEATHER T1–T6.
+- claude-automator WEATHER **verified end-to-end** (2026-07-19). Ran the consumer loop locally
+  (`npm start`) and both smoke tests passed against live Pub/Sub: QA (`smoke-test.mts` →
+  `QA`/`ANSWERED`) and WEATHER (`smoke-test-weather.mts` → `WEATHER`/`ANSWERED`, the answer drawing
+  on both the `metadata` prompt and the `payload` weather JSON — confirming the `<prompt>`/`<data>`
+  assembly and `USE_CASE_PATH`-routed outbound publish/ack). Running the WEATHER test required
+  creating `weather-svc-results` + its DLQ by hand (weather-svc's future `provision-pubsub.sh` job) —
+  tracked in `docs/backlog.md`. This validated the *code* against live infra, not a production
+  redeploy; the container redeploy is still the outstanding "Deployment order" step before
+  weather-svc goes live. Next unchanged: `@implementer weather-svc` (build) and/or
+  `@implementer gateway-svc`.
 
 ## WEATHER — technical notes for downstream phases
 
