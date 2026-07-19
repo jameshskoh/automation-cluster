@@ -23,22 +23,27 @@ built with gaps tracked in `docs/backlog.md`.
 
 | Service | Design (service-architect) | Implementation (implementer) | Docs root |
 |---|---|---|---|
-| `gateway-svc` | ACCEPTED¹ | IN_PROGRESS² | `gateway-svc/docs/` (design currently in system docs + `gateway-svc/AGENTS.md`) |
-| `claude-automator` | ACCEPTED (QA); WEATHER DRAFT | ACCEPTED³ (QA) | `claude-automator-dev/docs/` |
+| `gateway-svc` | ACCEPTED¹ | IN_PROGRESS² | `gateway-svc/docs/` |
+| `claude-automator` | ACCEPTED (QA + WEATHER)³ | ACCEPTED³ (QA) | `claude-automator-dev/docs/` |
 | `weather-svc` | ACCEPTED⁴ | NOT_STARTED | `weather-svc/docs/` |
 
-¹ No separate `gateway-svc/docs/architecture.md` yet — design is in the system-level `docs/` and
-  `gateway-svc/AGENTS.md`. A future `service-architect` pass could formalize it under `gateway-svc/docs/`.
+¹ Now formalized: `gateway-svc/docs/architecture.md` ACCEPTED (backfills the as-built QA gateway +
+  layers the WEATHER pass), alongside `use-cases/qa.md` and `use-cases/weather.md` (both ACCEPTED).
+  Carries a T1–T6 WEATHER phase-3 breakdown; `@implementer gateway-svc` can run once "Deployment
+  order" allows. The abstract gateway model still lives in the system-level `docs/` +
+  `gateway-svc/AGENTS.md`, which the service doc references rather than restates.
 ² Q&A flow runs end-to-end (see smoke tests); graceful-shutdown drain/force-fail and per-use-case
   timeout config are deferred (`docs/backlog.md`).
 ³ QA flow live, deployable (Docker); remaining gaps (no tests, disk-based correlation, "nothing to
-  do" mislabeled as failure) tracked in `docs/backlog.md`. WEATHER design pass is DRAFT
+  do" mislabeled as failure) tracked in `docs/backlog.md`. WEATHER design pass is now ACCEPTED
   (`claude-automator-dev/docs/architecture.md`, `arch/messaging.md`, `arch/disk-correlation.md`, new
   `use-cases/weather.md`): adds a second inbound subscription, generalizes inbound zod validation to
   `WEATHER`/`FETCHED`, adds a `USE_CASE_PATH` correlation file for outbound `use_case` pass-through +
   ack routing, and assembles prompt (`metadata`) + data (`payload`) with `<prompt>…</prompt>
-  <data>…</data>` tags. Carries a T1–T4 phase-3 breakdown; `@implementer claude-automator` runs once
-  it's ACCEPTED. See the WEATHER technical notes below.
+  <data>…</data>` tags. QA polled before WEATHER each round (accepted possible-starvation risk, now
+  documented). Carries a T1–T4 phase-3 breakdown; `@implementer claude-automator` can run, honoring
+  "Deployment order". Implementation column still ACCEPTED (QA) only — WEATHER not yet built. See the
+  WEATHER technical notes below.
 ⁴ Phase-2 design ACCEPTED — `weather-svc/docs/architecture.md` (+ `arch/open-meteo-integration.md`,
   `arch/messaging.md`, `use-cases/weather.md`). Plain Java 21 Cloud Run function (no Spring Boot),
   `HttpFunction` behind a Pub/Sub push subscription, open-meteo geocode+forecast with 4×6h block
@@ -76,6 +81,12 @@ single service, so it lives in this read-first index.
   ACCEPTED, then `@implementer claude-automator` (respecting "Deployment order"). Two
   backlog entries proposed for the coordinator to apply to `docs/backlog.md` (outside the service's
   write-lane).
+- gateway-svc and claude-automator WEATHER designs both ACCEPTED (user review). gateway-svc's
+  as-built design also formalized under `gateway-svc/docs/` (was previously only in system docs +
+  `AGENTS.md`); the QA-before-WEATHER poll-order starvation risk is now documented as an accepted risk
+  in claude-automator's `architecture.md`. All three service designs for WEATHER (gateway-svc,
+  weather-svc, claude-automator) are now ACCEPTED — phase 3 is unblocked for all three, gated only by
+  "Deployment order" (claude-automator before weather-svc goes live). Next: `@implementer <service>`.
 
 ## WEATHER — technical notes for downstream phases
 

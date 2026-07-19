@@ -1,5 +1,5 @@
 ---
-status: DRAFT
+status: ACCEPTED
 ---
 
 # claude-automator: WEATHER

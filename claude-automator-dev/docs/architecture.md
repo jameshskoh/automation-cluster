@@ -1,5 +1,5 @@
 ---
-status: DRAFT
+status: ACCEPTED
 ---
 
 # Architecture: claude-automator
@@ -147,6 +147,12 @@ files plus the `use_case` file), `POLL_INTERVAL_MS`/`POLL_COUNT`, and `OTLP_METR
   publish/ack error both currently land under `outcome=failure`, `reason=uuid_missing` /
   similar — conflating expected and unexpected outcomes in failure-rate metrics. See `metrics.md`
   and `backlog.md`.
+- **QA is polled before WEATHER each round (possible WEATHER starvation).** `SessionStart` polls the
+  QA subscription first and takes the first non-empty result (see "Multi-use-case handling" and T2),
+  so under sustained QA load a pending WEATHER message can wait behind many QA sessions before it is
+  picked up. Accepted for v1: the single-session-at-a-time process model already serializes both use
+  cases and expected volume is low, so ordering rarely bites. Revisit with fairer arbitration
+  (round-robin or oldest-first across the two subscriptions) if WEATHER latency becomes a problem.
 
 See the repo-root [`docs/backlog.md`](../../docs/backlog.md) for the full list of deferred items and
 where this module's code diverges from documented design.
