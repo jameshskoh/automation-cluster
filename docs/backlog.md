@@ -164,6 +164,21 @@ mismatches between the current codebase and the standards described there.
   locally for now rather than deployed to Cloud Run — write this script when that changes.
   Per-function (`xxxsvc`) deploy scripts also remain unstarted since no such function exists in
   the tree yet (`claude-automator` is not a Cloud Run Function and is deployed differently).
+- **WEATHER smoke test depends on `weather-svc-results` topics provisioned out-of-band.** The
+  WEATHER smoke test (`claude-automator-dev/docs/deploy/smoke-test/smoke-test-weather.mts`) publishes
+  a `WEATHER`/`FETCHED` message to `weather-svc-results` and needs that topic plus its DLQ
+  (`weather-svc-results-claude-automator-sub-dlq`) to already exist. Those are weather-svc's to own,
+  but weather-svc isn't implemented yet (`weather-svc/scripts/` is empty — no `provision-pubsub.sh`).
+  To run the smoke test on 2026-07-19, both topics were created manually via `gcloud pubsub topics
+  create` in project `env-dev-357995`; claude-automator's own `provision-pubsub.sh` then created the
+  `claude-automator-weather-svc-results-sub` subscription against them. The smoke-test README already
+  points at `weather-svc/scripts/provision-pubsub.sh`, so the WEATHER flow isn't reproducible from
+  committed scripts alone until that script exists. **Reconciliation:** when weather-svc is built, its
+  `provision-pubsub.sh` should own creation of `weather-svc-results` + DLQ — the README's existing
+  reference then becomes valid and the manual step disappears. Deliberately *not* baking the manual
+  `gcloud` commands into the README as a stand-in: a hand-written topic/DLQ mock would drift from
+  weather-svc's real topic/DLQ/schema config as that service evolves, so the committed provision
+  script stays the single source of truth.
 - **No CI pipeline builds/publishes the `claude-automator` image.** Today the image is built
   locally from a checkout via `docker build -t claude-automator claude-automator-dev/claude-automator`
   (see `claude-automator-dev/docs/deploy/README.md`) — there's no automation that builds the image

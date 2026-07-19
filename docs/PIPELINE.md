@@ -24,7 +24,7 @@ built with gaps tracked in `docs/backlog.md`.
 | Service | Design (service-architect) | Implementation (implementer) | Docs root |
 |---|---|---|---|
 | `gateway-svc` | ACCEPTED¹ | IN_PROGRESS² | `gateway-svc/docs/` |
-| `claude-automator` | ACCEPTED (QA + WEATHER)³ | ACCEPTED³ (QA) | `claude-automator-dev/docs/` |
+| `claude-automator` | ACCEPTED (QA + WEATHER)³ | ACCEPTED³ (QA + WEATHER) | `claude-automator-dev/docs/` |
 | `weather-svc` | ACCEPTED⁴ | NOT_STARTED | `weather-svc/docs/` |
 
 ¹ Now formalized: `gateway-svc/docs/architecture.md` ACCEPTED (backfills the as-built QA gateway +
@@ -35,15 +35,20 @@ built with gaps tracked in `docs/backlog.md`.
 ² Q&A flow runs end-to-end (see smoke tests); graceful-shutdown drain/force-fail and per-use-case
   timeout config are deferred (`docs/backlog.md`).
 ³ QA flow live, deployable (Docker); remaining gaps (no tests, disk-based correlation, "nothing to
-  do" mislabeled as failure) tracked in `docs/backlog.md`. WEATHER design pass is now ACCEPTED
+  do" mislabeled as failure) tracked in `docs/backlog.md`. WEATHER design pass ACCEPTED
   (`claude-automator-dev/docs/architecture.md`, `arch/messaging.md`, `arch/disk-correlation.md`, new
   `use-cases/weather.md`): adds a second inbound subscription, generalizes inbound zod validation to
   `WEATHER`/`FETCHED`, adds a `USE_CASE_PATH` correlation file for outbound `use_case` pass-through +
   ack routing, and assembles prompt (`metadata`) + data (`payload`) with `<prompt>…</prompt>
-  <data>…</data>` tags. QA polled before WEATHER each round (accepted possible-starvation risk, now
-  documented). Carries a T1–T4 phase-3 breakdown; `@implementer claude-automator` can run, honoring
-  "Deployment order". Implementation column still ACCEPTED (QA) only — WEATHER not yet built. See the
-  WEATHER technical notes below.
+  <data>…</data>` tags. QA polled before WEATHER each round (accepted possible-starvation risk,
+  documented). T1–T4 phase-3 breakdown now built: `config.ts`/`.env.example`/`Dockerfile` carry the
+  new `PUBSUB_WEATHER_SUBSCRIPTION_ID`/`USE_CASE_PATH` vars (T1); `pubsub-client.ts` generalizes the
+  inbound schema to a discriminated union, polls both subscriptions each round (QA first), assembles
+  prompt/data for WEATHER, and routes the outbound publish/ack by the inbound `use_case` (T2);
+  `scripts/provision-pubsub.sh` provisions the new WEATHER subscription + DLQ (T3); deploy docs and
+  a second smoke-test script (`smoke-test-weather.mts`, publishing directly to `weather-svc-results`
+  since weather-svc doesn't exist yet) cover the WEATHER path (T4). Deployment to production is a
+  separate, not-yet-done operational step — see "Deployment order" below, still gating weather-svc.
 ⁴ Phase-2 design ACCEPTED — `weather-svc/docs/architecture.md` (+ `arch/open-meteo-integration.md`,
   `arch/messaging.md`, `use-cases/weather.md`). Plain Java 21 Cloud Run function (no Spring Boot),
   `HttpFunction` behind a Pub/Sub push subscription, open-meteo geocode+forecast with 4×6h block
@@ -87,6 +92,11 @@ single service, so it lives in this read-first index.
   in claude-automator's `architecture.md`. All three service designs for WEATHER (gateway-svc,
   weather-svc, claude-automator) are now ACCEPTED — phase 3 is unblocked for all three, gated only by
   "Deployment order" (claude-automator before weather-svc goes live). Next: `@implementer <service>`.
+- `@implementer claude-automator` ran the WEATHER T1–T4 breakdown — Implementation column now
+  ACCEPTED (QA + WEATHER). Code built, not yet deployed: redeploying claude-automator (see
+  `claude-automator-dev/docs/deploy/README.md`) is the remaining step before "Deployment order"
+  allows weather-svc to go live. Next: `@implementer weather-svc` (build first; still honor
+  "Deployment order" for go-live) and/or `@implementer gateway-svc` for its WEATHER T1–T6.
 
 ## WEATHER — technical notes for downstream phases
 
