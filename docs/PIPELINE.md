@@ -25,7 +25,7 @@ built with gaps tracked in `docs/backlog.md`.
 |---|---|---|---|
 | `gateway-svc` | ACCEPTED¹ | IN_PROGRESS² | `gateway-svc/docs/` |
 | `claude-automator` | ACCEPTED (QA + WEATHER)³ | ACCEPTED³ (QA + WEATHER) | `claude-automator-dev/docs/` |
-| `weather-svc` | ACCEPTED⁴ | NOT_STARTED | `weather-svc/docs/` |
+| `weather-svc` | ACCEPTED⁴ | ACCEPTED⁵ | `weather-svc/docs/` |
 
 ¹ Now formalized: `gateway-svc/docs/architecture.md` ACCEPTED (backfills the as-built QA gateway +
   layers the WEATHER pass), alongside `use-cases/qa.md` and `use-cases/weather.md` (both ACCEPTED).
@@ -54,6 +54,18 @@ built with gaps tracked in `docs/backlog.md`.
   `HttpFunction` behind a Pub/Sub push subscription, open-meteo geocode+forecast with 4×6h block
   aggregation, `FETCHED`/`FAILED` error short-circuit. Carries a 7-task (T1–T7) phase-3 breakdown, so
   `@implementer weather-svc` can run. See "Deployment order" below.
+⁵ `@implementer weather-svc` ran the full T1–T7 breakdown. Built, not deployed (per "Deployment
+  order" — claude-automator's redeploy is still outstanding). `mvn package` builds; 42 unit tests
+  pass, several against the open-meteo guide's exact sample JSON (geocoding's 5-result "Ayer Hitam"
+  fixture, the 2-day forecast sample). `FORECAST_DAYS` defaults to 1 (undecided in phase-2; the
+  interpretation prompt asks for exactly one row per block, i.e. a single day's report) —
+  `BlockAggregator` still buckets generally per day, so a larger value works too. `scripts/
+  provision-pubsub.sh` adds its own push-subscription helper (the shared `pubsub-lib.sh` is
+  pull-only) and is meant to run twice (pre- and post-deploy, once the Cloud Run URL is known);
+  `docs/deploy/README.md` covers the source-based deploy plus the IAM grants an authenticated push
+  subscription needs (run.invoker on a dedicated push service account, serviceAccountTokenCreator
+  for Pub/Sub's agent). `scripts/provision-pubsub-schema.sh` (repo root) now also attaches the
+  shared schema to `weather-svc-results`.
 
 ## Deployment order
 
@@ -107,6 +119,13 @@ single service, so it lives in this read-first index.
   redeploy; the container redeploy is still the outstanding "Deployment order" step before
   weather-svc goes live. Next unchanged: `@implementer weather-svc` (build) and/or
   `@implementer gateway-svc`.
+- `@implementer weather-svc` ran the T1–T7 breakdown — Implementation column now ACCEPTED. Code
+  built and unit-tested (42 tests, `mvn package` green, several against the open-meteo guide's
+  exact sample JSON), not deployed — per "Deployment order", weather-svc's live deploy still waits
+  on claude-automator's outstanding redeploy. Next: claude-automator's redeploy (unblocks
+  "Deployment order"), weather-svc's actual `gcloud run deploy` + two-pass `provision-pubsub.sh`
+  (see `weather-svc/docs/deploy/README.md`), and/or `@implementer gateway-svc` for its WEATHER
+  T1–T6.
 
 ## WEATHER — technical notes for downstream phases
 
