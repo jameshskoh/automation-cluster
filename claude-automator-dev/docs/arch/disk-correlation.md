@@ -14,16 +14,17 @@ local filesystem as the handoff mechanism.
 
 ## Decision
 
-Three files carry state across process boundaries:
+Four files carry state across process boundaries:
 
 | File | Written by | Content | Read by | Purpose |
 |---|---|---|---|---|
 | `PID_FILE` | Outer loop, at spawn time | PID of the `claude` child process | `Stop` hook | Lets `Stop` find and kill the Claude Code process it doesn't otherwise have a handle to. |
 | `UUID_PATH` | `SessionStart` hook, after a message is pulled | The inbound message's `request_id` | `Stop` hook (then deleted) | Lets `Stop` stamp the outbound `ANSWERED` envelope with the `request_id` it's answering. |
 | `ACK_ID_PATH` | `SessionStart` hook, after a message is pulled | The Pub/Sub `ackId` of the inbound message | `Stop` hook (then deleted) | Lets `Stop` acknowledge the original inbound message so it's removed from the input subscription. |
+| `USE_CASE_PATH` | `SessionStart` hook, after a message is pulled | The inbound message's `use_case` (`QA` or `WEATHER`) | `Stop` hook (then deleted) | Lets `Stop` (a) stamp the outbound `use_case`/`stage` (`QA/ANSWERED` or `WEATHER/ANSWERED`) on body + attributes, and (b) select which of the two inbound subscriptions to acknowledge against — both derive from this one value (1:1 `use_case`→subscription). |
 
-`UUID_PATH` and `ACK_ID_PATH` are deleted by `Stop` as soon as they're read, so a stale value
-can't leak into the next session.
+`UUID_PATH`, `ACK_ID_PATH`, and `USE_CASE_PATH` are deleted by `Stop` as soon as they're read, so a
+stale value can't leak into the next session.
 
 ## Kill mechanism
 

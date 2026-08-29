@@ -6,11 +6,13 @@ status: ACCEPTED
 
 ## Overview: Pub/Sub as the transport
 
-`claude-automator` talks outward only through GCP Pub/Sub — one topic/subscription pair inbound,
-one outbound (see the repo-root
+`claude-automator` talks outward only through GCP Pub/Sub — **two** inbound subscriptions (QA on
+`gateway-requests`, WEATHER on `weather-svc-results`) and **one** outbound topic
+(`claude-automator-responses`, shared by both use cases and distinguished by the `use_case`/`stage`
+attributes; see the repo-root
 [`docs/arch/topics-and-provisioning.md`](../../../docs/arch/topics-and-provisioning.md) for topic
-ownership). Pub/Sub decouples it from whatever's on the other end and lets it process a request
-asynchronously, on its own schedule, with no connection held open.
+ownership). Pub/Sub decouples it from the other end and lets it process asynchronously, on its own
+schedule, with no connection held open.
 
 ## Input mechanism: sync pull, not push
 
@@ -24,16 +26,20 @@ always-on component just to host it, which is a different architecture, not a tw
 
 `claude-automator` uses **synchronous pull**: the `SessionStart` hook (`poll-useful-message.ts`)
 calls `subClient.pull({ subscription, maxMessages: 1 })`, up to `POLL_COUNT` times, sleeping
-`POLL_INTERVAL_MS` between empty results. If nothing arrives, the session starts anyway with a
-"nothing to do" context instead of a question. See "Future optimization" below for the tradeoff
-this choice makes and when it'd be worth revisiting.
+`POLL_INTERVAL_MS` between empty results. With two inbound subscriptions it tries each per round (QA
+first, then WEATHER); the first non-empty pull wins and the session works that one message — keeping
+the single-session-at-a-time shape. If nothing arrives on either, the session starts anyway with a
+"nothing to do" context instead of a task. See "Future optimization" below for the tradeoff this
+choice makes and when it'd be worth revisiting.
 
 ## Output mechanism: direct publish
 
 The `Stop` hook (`end-session.ts`) makes one `publish()` call to the outbound topic once Claude
-Code finishes answering, and separately acknowledges the original inbound message (see
-[`disk-correlation.md`](disk-correlation.md) for how it knows which message that is). No polling
-on this side — `claude-automator`'s job ends at that single publish call.
+Code finishes answering, and separately acknowledges the original inbound message against the
+subscription it arrived on (see [`disk-correlation.md`](disk-correlation.md) for how it knows which
+message, and on which subscription). The published envelope echoes the inbound `use_case` on both
+body and attributes (`QA/ANSWERED` or `WEATHER/ANSWERED`) rather than being hardcoded to one use
+case. No polling on this side — `claude-automator`'s job ends at that single publish call.
 
 ## Future optimization: StreamingPull
 

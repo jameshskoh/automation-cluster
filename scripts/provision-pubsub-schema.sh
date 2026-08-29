@@ -12,8 +12,9 @@ set -euo pipefail
 # This is repo-shared infrastructure (unlike topics, which are owned per-publisher), so it lives
 # at the repo root rather than under any one service's scripts/.
 #
-# Run order: gateway-svc/scripts/provision-pubsub.sh and claude-automator/scripts/provision-pubsub.sh
-# must both run FIRST — a schema can only be attached to a topic that already exists.
+# Run order: gateway-svc/scripts/provision-pubsub.sh, claude-automator/scripts/provision-pubsub.sh,
+# and weather-svc/scripts/provision-pubsub.sh must all run FIRST — a schema can only be attached to
+# a topic that already exists.
 #
 # Usage: GCP_PROJECT_ID=my-project ./scripts/provision-pubsub-schema.sh
 
@@ -28,6 +29,7 @@ SCHEMA_DEFINITION_FILE="$REPO_ROOT/schemas/gateway_message.proto"
 TOPICS_USING_SCHEMA=(
   "gateway-requests"
   "claude-automator-responses"
+  "weather-svc-results"
 )
 
 echo "Project: ${GCP_PROJECT_ID}"

@@ -16,6 +16,11 @@ mismatches between the current codebase and the standards described there.
   is expected, benign behavior, not a real failure. It conflates with genuine publish/ack errors
   in failure-rate metrics. Needs its own outcome (or to be skipped entirely) instead of reusing
   `failure`.
+- **claude-automator's benign-empty detection is metadata-only.** `pollPubSub()`
+  (`pubsub-client.ts`) ack-drops a message when `metadata == ""`, assuming the meaningful content
+  always lives in `metadata`. WEATHER is safe (its interpretation prompt is always in `metadata`),
+  but a future use case that carries content only in `payload` would be mis-detected as an empty
+  no-op and silently ack-dropped. Make the no-op test use-case-aware if such a use case appears.
 - **claude-automator's failure paths aren't diagrammed yet.** `claude-automator-dev/docs/use-cases/`
   currently has `happy-path.md` and `nothing-to-do.md` — the success case and the empty-poll case.
   At least three other paths exist in the code but aren't written up anywhere as sequence
@@ -62,12 +67,21 @@ mismatches between the current codebase and the standards described there.
 - **Schema evolution enforcement**: the rule (no field removal, new fields must be optional with
   defaults) is currently a convention only. No CI or code-review checklist item enforces that a
   new Protobuf schema revision doesn't remove/renumber fields.
-- **Fast-fail / error short-circuit**: today, a mid-chain function failure is only detected by the
-  gateway's per-use-case timeout — a deliberate, fast, "expected" failure (e.g. invalid user
-  input) looks identical to a hung request until the timeout elapses. A lightweight optional
-  `error` stage convention (a function publishes directly to this stage on an expected failure,
-  short-circuiting to the gateway) could let the gateway fail fast instead of waiting out the
-  timeout. Not designed in detail; revisit if fast-fail UX becomes a requirement.
+- **Fast-fail / error short-circuit** — *designed; first adopter partial, rollout + impl remaining.*
+  Defined in `architecture.md` ("Error short-circuit"): an optional terminal `FAILED` stage carrying
+  `request_id` + reason, which the gateway subscribes to and fails the caller via the timeout path
+  before the timeout elapses. First adopter is WEATHER (`docs/use-cases/weather.md`), where
+  weather-svc publishes `FAILED` on a city-match or forecast-retrieval failure.
+  - **Remaining**: v1 covers only weather-svc's failures; claude-automator/LLM stages and any
+    hung/crashed function still fall back to the timeout — extending needs only a new filtered
+    gateway subscription per error stage. Still to build: the gateway-side generic handler mapping
+    an inbound error stage → failure delivery + registry eviction (phase-3, see `PIPELINE.md`'s
+    WEATHER technical notes).
+- **No retry on transient open-meteo errors (weather-svc).** v1 weather-svc publishes `FAILED`
+  immediately on a transient open-meteo failure (5xx / network / timeout), with no in-process
+  retry/backoff before giving up (`weather-svc/docs/architecture.md`, "Error posture"; the calls are
+  read-only, so a retry is safe). A bounded retry before falling back to `FAILED` would cut spurious
+  failures; deferred until it proves necessary.
 - **Cloud Tasks delayed/scheduled continuation**: documented in `architecture.md` as a pattern for
   when a function needs to "come back later" outside of Pub/Sub's own retry policy (e.g. polling
   an external async job). No current use case needs this yet — implement when one does.
@@ -118,12 +132,26 @@ mismatches between the current codebase and the standards described there.
   than relying on the Pub/Sub subscription filter as its sole data-contract check. Remaining gap:
   it still correlates requests via files on disk (`UUID_PATH`, `ACK_ID_PATH`, populated from the
   envelope's `request_id`) rather than an in-process mechanism. That remains unstarted.
+  Note: the former "outbound `use_case`/`stage` hardcoded to `QA`/`ANSWERED`" limitation is
+  resolved by the WEATHER pass (task T2) — `use_case` is now carried across the SessionStart→Stop
+  boundary via `USE_CASE_PATH` and echoed outbound. The disk-based correlation itself remains.
 - **No per-use-case timeout configuration.** `gateway-svc` has a `qa.async.timeout-millis` (HTTP
   long-poll timeout) and a separate `qa.pending.ttl-millis` (registry eviction sweep), which
   together approximate the gateway's timeout-then-cleanup design — but this is hardcoded to the
   one Q&A use case rather than being a declared, per-use-case property as `architecture.md`
   describes. Generalizing this to a per-use-case timeout config (so a new use case can declare its
-  own timeout without touching shared config keys) is unstarted.
+  own timeout without touching shared config keys) is unstarted. **Now forced by WEATHER**, which
+  declares a 2-minute timeout (`docs/use-cases/weather.md`) the flat `qa.*` keys can't express —
+  phase-3 gateway work, see `PIPELINE.md`'s WEATHER technical notes.
+- **Gateway publish failure only logs; it should synchronously fail the request.**
+  `PubSubGatewayMessagePublisher` (`gateway-svc`) publishes non-blocking and, on a publish failure,
+  only logs — the request then falls through to the timeout. `arch/messaging.md` ("Schema
+  enforcement", gateway exception) requires the gateway to catch a failed publish synchronously and
+  immediately fail the request through the same failure-response + registry-cleanup path used for
+  timeouts, since the gateway (as the first publisher of a use case) has no upstream subscription/DLQ
+  for a failed publish to dead-letter into. Documented as an as-built divergence in
+  `../gateway-svc/docs/architecture.md` ("Outbound publisher" / "As-built divergences"); fixing it is
+  deferred.
 - **No graceful-shutdown drain/force-fail/forced-shutdown sequence implemented.** Nothing in
   `gateway-bootstrap` currently drains in-flight registry entries or force-fails them on shutdown;
   only the TTL sweeper exists, which is a different mechanism (periodic eviction, not a shutdown
@@ -136,6 +164,21 @@ mismatches between the current codebase and the standards described there.
   locally for now rather than deployed to Cloud Run — write this script when that changes.
   Per-function (`xxxsvc`) deploy scripts also remain unstarted since no such function exists in
   the tree yet (`claude-automator` is not a Cloud Run Function and is deployed differently).
+- **WEATHER smoke test depends on `weather-svc-results` topics provisioned out-of-band.** The
+  WEATHER smoke test (`claude-automator-dev/docs/deploy/smoke-test/smoke-test-weather.mts`) publishes
+  a `WEATHER`/`FETCHED` message to `weather-svc-results` and needs that topic plus its DLQ
+  (`weather-svc-results-claude-automator-sub-dlq`) to already exist. Those are weather-svc's to own,
+  but weather-svc isn't implemented yet (`weather-svc/scripts/` is empty — no `provision-pubsub.sh`).
+  To run the smoke test on 2026-07-19, both topics were created manually via `gcloud pubsub topics
+  create` in project `env-dev-357995`; claude-automator's own `provision-pubsub.sh` then created the
+  `claude-automator-weather-svc-results-sub` subscription against them. The smoke-test README already
+  points at `weather-svc/scripts/provision-pubsub.sh`, so the WEATHER flow isn't reproducible from
+  committed scripts alone until that script exists. **Reconciliation:** when weather-svc is built, its
+  `provision-pubsub.sh` should own creation of `weather-svc-results` + DLQ — the README's existing
+  reference then becomes valid and the manual step disappears. Deliberately *not* baking the manual
+  `gcloud` commands into the README as a stand-in: a hand-written topic/DLQ mock would drift from
+  weather-svc's real topic/DLQ/schema config as that service evolves, so the committed provision
+  script stays the single source of truth.
 - **No CI pipeline builds/publishes the `claude-automator` image.** Today the image is built
   locally from a checkout via `docker build -t claude-automator claude-automator-dev/claude-automator`
   (see `claude-automator-dev/docs/deploy/README.md`) — there's no automation that builds the image
