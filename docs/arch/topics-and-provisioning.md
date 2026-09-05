@@ -17,6 +17,11 @@ ownership and naming, and the per-service provisioning-script convention. See
 - **A subscription is owned by its consumer.** Adding a new use case to an existing publisher
   means adding a new subscription (with the appropriate filter) against that publisher's existing
   topic — it does not require creating a new topic.
+  - A consumer that serves multiple use cases across *different* publishers (e.g.
+    `claude-automator` serving both `QA` and `ARTICLE_SUMMARY`) simply owns one subscription per
+    upstream topic it needs, each with its own filter — not a special case, just this rule applied
+    N times. See [`../architecture.md`](../architecture.md#claude-automator-multi-use-case-dispatch)
+    for why that's the only shape that fits (a subscription binds to exactly one topic).
 - Convention: **1 topic per publishing service** (not per service+use_case). The use_case/stage
   attributes on the subscription do the filtering work; the same fields in the message body
   remain useful for logging and for any consumer that reads multiple use cases off one
@@ -24,6 +29,17 @@ ownership and naming, and the per-service provisioning-script convention. See
 - Naming convention: topic = `<owning-publisher>-<purpose>` (e.g. a function's own outbound
   topic is named after that function, not after whoever reads it). Subscription =
   `<consuming-service>-<topic-name>-sub`.
+  - **Disambiguator for a second subscription on the same topic by the same consumer.** The name
+    above is a function of consumer + topic only, so it cannot distinguish two subscriptions the
+    same consumer owns against one topic — which happens as soon as that consumer cares about two
+    use cases carried on one publisher's topic (e.g. the gateway consuming both `QA`'s `ANSWERED`
+    and `ARTICLE_SUMMARY`'s `SUMMARIZED` off `claude-automator-responses`). When that happens,
+    insert the lower-cased `use_case` before the `-sub` suffix:
+    `<consuming-service>-<topic-name>-<use-case>-sub`. Apply it only to the *new* subscription:
+    renaming an existing one means deleting and recreating it (filters are immutable, see below),
+    needlessly disturbing a live consumer for a cosmetic gain. The resulting asymmetry — one
+    undisambiguated legacy name alongside disambiguated siblings — is accepted; the DLQ name
+    derived from it (see below) stays unique either way.
 - DLQ convention: **one DLQ topic per subscription that needs one**, named `<topic>-<sub>-dlq`
   (GCP Pub/Sub's dead-letter feature is configured per-subscription; there is no built-in global
   DLQ primitive). This keeps a failure signal next to the stage that produced it and makes
@@ -31,12 +47,11 @@ ownership and naming, and the per-service provisioning-script convention. See
   case failed.
   - Note the ownership difference this name encodes: an *application* topic is publisher-owned and
     publisher-named (see above), but a *DLQ* topic is owned by the **subscription** it backstops —
-    hence the `<sub>` in its name. That is deliberate, not a violation of the one-topic-per-publisher
-    rule: because dead-lettering is attached per-subscription, two consumers filtering the same
-    topic must not share one graveyard, or you couldn't tell which consumer failed or replay just
-    its stream. The DLQ topic is published to by the Pub/Sub service agent (see the IAM grants in
-    the provisioning scripts), never by one of your services, so it never becomes a service's second
-    outbound topic.
+    hence the `<sub>` in its name. Deliberate, not a violation of the one-topic-per-publisher rule:
+    because dead-lettering is attached per-subscription, two consumers filtering the same topic must
+    not share one graveyard, or you couldn't tell which consumer failed or replay just its stream.
+    The Pub/Sub service agent publishes to the DLQ topic (see the IAM grants in the provisioning
+    scripts), never one of your services, so it never becomes a service's second outbound topic.
 
 ## Provisioning scripts
 
@@ -52,6 +67,17 @@ Instead, each service has its own `scripts/provision-pubsub.sh` that provisions 
 1. The topic(s) + DLQ(s) that service publishes to (infrastructure it owns).
 2. That service's own subscription(s) against topics owned by other services (a subscription is
    always owned by its consumer, never by the topic's publisher).
+
+**Schema attachment is the one exception to per-service ownership.** The shared envelope schema
+(see [`messaging.md`](messaging.md)) must be attached to *every* topic carrying it, but a schema is
+repo-shared infrastructure rather than any one publisher's property, so it is registered and
+attached by the repo-root `scripts/provision-pubsub-schema.sh`, which holds an explicit list of the
+topics using it. Consequence, and an easy step to miss: **introducing a new topic is not just an
+edit to the owning service's `provision-pubsub.sh`** — that new topic must also be added to the
+root script's topic list, and the root script re-run *after* the topic exists (it can only attach a
+schema to an existing topic). A topic left off that list is created successfully and carries
+traffic unvalidated, with no error at publish time to reveal the omission. The root script skips
+any topic that already has a schema attached, so re-running it after adding a new entry is safe.
 
 The actual `gcloud` calls (create-topic-if-missing, create-subscription-if-missing, DLQ IAM
 grants) are common across every service's script, so they live once in `scripts/pubsub-lib.sh` at

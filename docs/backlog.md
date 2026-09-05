@@ -71,6 +71,43 @@ mismatches between the current codebase and the standards described there.
 - **Cloud Tasks delayed/scheduled continuation**: documented in `architecture.md` as a pattern for
   when a function needs to "come back later" outside of Pub/Sub's own retry policy (e.g. polling
   an external async job). No current use case needs this yet — implement when one does.
+- **Gateway-initiated (unsolicited) delivery is designed but not implemented.** `architecture.md`
+  documents this as a gateway capability, needed by `use-cases/article-summary.md`, which has no
+  caller connection to deliver through. Today's `AnswerSink`/`PendingAnswerRegistry` machinery
+  requires a `register(requestId, sink)` call before `complete(requestId, message)` can find
+  anything to invoke — there's no code path for the gateway to act on an inbound message with no
+  prior registration. The destination-config *shape* is decided (see `architecture.md`,
+  "Gateway-initiated (unsolicited) delivery," and `gateway-svc/docs/draft-notes.md`), but nothing
+  implements it — no such config exists and no code loads it. Needs: a direct-delivery mechanism
+  keyed on `use_case`+`stage` (not `request_id`) that bypasses the registry entirely, the config
+  entries plus their loading/binding code, and (for Slack) a bot-token `chat.postMessage`-style send
+  distinct from the existing `response_url`-based `ctx.respond` path used by `/ask`. Two further
+  requirements added by the edge-case review, both easy to miss when implementing:
+  - **Delivery-mode dispatch must precede the registry lookup.** `GatewayResponseSubscriber` must
+    route on `use_case`+`stage` *first* and only fall through to `PendingAnswerRegistry` for
+    registered-callback use cases. Implemented the other way round, every unsolicited message hits
+    the "unknown `request_id`" branch and is logged-and-discarded — a silent total failure of the
+    feature that would still pass a naive smoke test if the discard log went unread.
+  - **Duplicate suppression by `request_id` on this path.** The registered-callback path dedups
+    implicitly (the registry entry is consumed on first completion); a stateless direct-delivery
+    handler does not, so at-least-once redelivery posts the same Slack message twice. Needs a
+    remembered-`request_id` set covering the redelivery window. Shares the durability question of
+    the in-memory callback registry below — a restart clears it either way.
+- **No alerting on DLQ depth, which is the only failure signal for use cases with no caller.** For
+  a caller-originated use case, a failure eventually surfaces to a human via the caller's timeout.
+  For a scheduled-task-originated one (see `architecture.md`) there is no caller and no timeout
+  delivery, so a nacked-then-dead-lettered message — including a failed *terminal* delivery, where
+  all the work succeeded and only the final external send failed — is entirely silent. Nothing
+  currently watches DLQ depth on any subscription. Folds into the observability item above, but is
+  called out separately because it is the specific signal `use-cases/article-summary.md` depends on
+  and the only one it has.
+- **Message-size limits are undefended across the board.** No service currently bounds or truncates
+  outbound `payload`/`metadata`, which was harmless while every message was a short question or
+  answer. `ARTICLE_SUMMARY` introduces content fetched from arbitrary third-party RSS feeds, where
+  an oversized message is a realistic publish-time failure (see `architecture.md`, "Blast radius of
+  sharing one topic and one instance"). Decide per originating service whether to truncate, split,
+  or offload large content (e.g. to Cloud Storage with a reference in the envelope) — the last of
+  these would be a system-level envelope change and should come back here if chosen.
 
 ## Mismatches: current code vs. standards in `architecture.md`
 
@@ -118,6 +155,30 @@ mismatches between the current codebase and the standards described there.
   than relying on the Pub/Sub subscription filter as its sole data-contract check. Remaining gap:
   it still correlates requests via files on disk (`UUID_PATH`, `ACK_ID_PATH`, populated from the
   envelope's `request_id`) rather than an in-process mechanism. That remains unstarted.
+- **claude-automator is QA-only in code; `architecture.md` now specifies multi-use-case dispatch.**
+  Verified in code: `config.ts` exposes a single `PUBSUB_TOPIC_ID`/`PUBSUB_SUBSCRIPTION_ID` pair,
+  and `pubsub-client.ts` hardcodes `QA_USE_CASE = "QA"` plus its `ASKED`/`ANSWERED` stage constants
+  as module-level literals — both the inbound envelope validator and the outbound publish are
+  locked to this one use case. No longer an accepted shape: `architecture.md`
+  ("claude-automator: multi-use-case dispatch") now specifies one running instance owning multiple
+  subscriptions (one per registered use case) and dispatching per message via a per-use-case
+  registry entry (subscription → prompt template → outbound stage), with `QA` as that registry's
+  first entry, unchanged in behavior. Reopens claude-automator's own service-level design (currently
+  `ACCEPTED`, QA-only) — see `PIPELINE.md`. Still open, deferred to that service-level pass:
+  - The concrete registry format (static config file vs. code-defined table) and where it lives.
+  - How N concurrent poll loops share the process (one async loop per subscription vs. some other
+    concurrency structure) without regressing the existing single-loop `POLL_COUNT`/
+    `POLL_INTERVAL_MS` behavior QA relies on today.
+  - Migration path for existing QA deployments/config (env vars, `.env`, deploy scripts) onto
+    whatever the new registry format turns out to be, without a breaking redeploy.
+- **`scripts/provision-pubsub-schema.sh`'s topic list is manually maintained and will be stale for
+  `article-summary`.** Its `TOPICS_USING_SCHEMA` array currently lists only `gateway-requests` and
+  `claude-automator-responses`. `arch/messaging.md` requires the envelope schema on *every* topic
+  carrying it, but nothing enforces the list — a new topic omitted from it is created fine and
+  carries unvalidated traffic with no error anywhere. `article-svc-requests` must be added when
+  `article-svc` is implemented (see `use-cases/article-summary.md`). Longer term, deriving the list
+  from the per-service scripts, or failing the script when it finds a topic without an attached
+  schema, would close the gap properly.
 - **No per-use-case timeout configuration.** `gateway-svc` has a `qa.async.timeout-millis` (HTTP
   long-poll timeout) and a separate `qa.pending.ttl-millis` (registry eviction sweep), which
   together approximate the gateway's timeout-then-cleanup design — but this is hardcoded to the

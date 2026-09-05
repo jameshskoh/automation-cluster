@@ -83,6 +83,15 @@ or writing:
 |---|---|
 | `claude-automator` | `claude-automator-dev/docs/` (sibling of its code at `claude-automator-dev/claude-automator/`) |
 
+### `draft-notes.md` convention
+
+A `<docs-root>/draft-notes.md` (e.g. `gateway-svc/docs/draft-notes.md`) is a scratch file for
+implementation-level detail that's too code-specific for a design doc's altitude, but useful as a
+starting sketch for the sub-agent that will next own that detail (typically `service-architect` or
+`implementer` picking up an obligation a system- or service-level doc introduced). Not a design doc:
+no `status:` frontmatter, not read automatically by any sub-agent. Whoever consumes it decides what
+survives; delete the file once its content is folded into a real design doc.
+
 ### Branch gate
 
 Verify the current branch is **not `main`** before writing — work happens on a `dev` branch (e.g.

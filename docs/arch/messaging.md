@@ -17,7 +17,7 @@ Every message in the system shares a single envelope:
 |---|---|
 | `use_case` | Identifies which use case (chain of processing) this message belongs to. |
 | `stage` | Identifies which stage of the use case this message represents. |
-| `request_id` | UUID, originated and remembered by the gateway; used to match a response back to the request that started it. |
+| `request_id` | UUID, minted by whichever service originates the chain (the gateway for a caller-originated use case; the originating service itself for a scheduled-task-originated one — see [`../architecture.md`](../architecture.md), "Two ways a use case originates"). Carried unchanged through every stage. Used to match a response back to the request that started it, and as the idempotency key (with `stage`) at every stage. |
 | `payload` | The primary data being processed. |
 | `metadata` | Secondary data for "extra purpose" — e.g. LLM instructions, trace context, etc. |
 
@@ -52,6 +52,13 @@ on every topic. Messages that don't comply with the schema are rejected — but 
   message of a use case), there is no upstream topic/subscription for a failed publish to
   dead-letter into. The gateway must catch this synchronously and immediately fail the request
   through the same failure-response + registry-cleanup path used for timeouts.
+- **Exception — an originating scheduled task.** The same "no upstream message to nack" situation
+  applies to the first publish of a scheduled-task-originated use case, but without the gateway's
+  escape hatch: there is no caller connection to fail into either. Such a publish failure is
+  therefore only observable to the originating service itself — it must log/count the failure and
+  decide whether to retry within the task or drop the item until the next tick. Whichever it
+  chooses is that service's own design call; what this doc requires is that the failure is not
+  swallowed silently.
 - **claude-automator has no exception**: a schema-violation-triggered processing failure follows
   the same nack → retry → DLQ path as any other function.
 
